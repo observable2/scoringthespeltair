@@ -1,0 +1,18 @@
+{
+  "name": "scoringthespeltair",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared playback engine (spel scoring/animation) for Observable notebook-kit poem projects",
+  "license": "MIT",
+  "files": [
+    "play.js",
+    "utils.js",
+    "config.js",
+    "README.md"
+  ],
+  "exports": {
+    "./play.js": "./play.js",
+    "./utils.js": "./utils.js",
+    "./config.js": "./config.js"
+  }
+}
