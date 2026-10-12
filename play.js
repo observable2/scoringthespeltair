@@ -1,24 +1,29 @@
-import { mod, sleep, msToTime } from "./utils.js";
+import { sleep, msToTime } from "./timing.js";
+import { createDevLog } from "./dev.js";
+import { toggleSpel } from "./display.js";
+import { sumPauses } from "./score.js";
 async function play(config, displayElem, spels, paras, scores) {
-  console.log("entered play()", scores);
+  const devLog = createDevLog(config);
+  devLog("entered play()", scores);
   let cycStart,
     fadePause = 0,
     fadeWords = config.fadeWords,
     idx,
     loopCount = 0,
     loopMsg,
-    paraNum = config.startingPoint,
     numParas = paras.length,
+    paraNum = config.startingPoint,
+    score,
+    scoreNum = 0,
+    yieldMsg,
+    // currently unused variables
+    scoreName,
     prevScore,
     rdnScore,
-    score,
-    scoreName,
-    scoreNum = 0,
-    toggle = true,
-    yieldMsg;
+    toggle = true;
    // >>> show whatever is currently visible in the display element
   if (config.fadeWords < 1 ) {
-    console.log(">>> show whatever is currently visible in the display element");
+    devLog(">>> show whatever is currently visible in the display element");
     displayElem.style.opacity = 1;
   }
   // <<<
@@ -31,7 +36,7 @@ async function play(config, displayElem, spels, paras, scores) {
     // looping forever ...
     loopMsg = `loop: ${loopCount++}`;
     // TODO - ALLOW MULTIPLE SCORES PER PARA (scoreNum goes to 0 on paraNum change)
-    console.log(scoreNum, paraNum);
+    devLog(scoreNum, paraNum);
     score = scores[scoreNum];
     // >>> (currently) unused mechanism for generating quasi-random scores on the fly (see 'Uchaf'):
     // if (typeof scores[scoreNum] === "string") {
@@ -47,9 +52,9 @@ async function play(config, displayElem, spels, paras, scores) {
     //   score = scores[scoreNum];
     // }
     // <<<
-    // console.log(scoreSet, "scoreNum", scoreNum, scoreSet[scoreNum]); // DEBUG
-    console.log("scores:",scores); // DEBUG
-    console.log("score:", scoreNum, "score items:", score.length);
+    // devLog(scoreSet, "scoreNum", scoreNum, scoreSet[scoreNum]); // DEBUG
+    devLog("scores:",scores); // DEBUG
+    devLog("score:", scoreNum, "score items:", score.length);
     //
     // This is where we inner-loop through each item in the current score and
     // display the string of its spel for the length of time in its pause property.
@@ -58,15 +63,11 @@ async function play(config, displayElem, spels, paras, scores) {
       let spelId = score[idx].id;
       // an 'AUTOFADE' score item can override the config.fadeWords default
       if (spelId === "AUTOFADE") { 
-        console.log("autoFade");
+        devLog("autoFade");
         // calculate autofade pause based on number of fadeWords
-        fadePause = 0;
         fadeWords = score[idx].pause; // repurposing the pause property for AUTOFADE spels
-        for (let fi = 0; fi < fadeWords; ++fi) {
-          let fidx = (idx + fi + 1) % score.length;
-          fadePause += score[fidx].pause;
-        }
-        console.log("In-score AUTOFADE of:", fadeWords, "at score:", scoreNum, "item:", idx);
+        fadePause = sumPauses(score, idx, fadeWords);
+        devLog("In-score AUTOFADE of:", fadeWords, "at score:", scoreNum, "item:", idx);
         continue;
       }
       // >>> provide some info:
@@ -79,61 +80,35 @@ async function play(config, displayElem, spels, paras, scores) {
       yieldMsg =
         loopMsg + `, score: ${scoreNum}, item: ${idx}, paraNum: ${paraNum}, id: ${spelId}, `;
       yieldMsg += `string: '${str}', pause: ${score[idx].pause}`;
-      // console.log(yieldMsg);
+      // devLog(yieldMsg);
       // <<< (in other contexts:) yield yieldMsg;
       //
-      // >>> this defines a function that toggles the visibility of each character in a spel
-      // one at a time, with a delay between each one
-      // called below if config.charFades is true
-      const charToggle = async (spel) => {
-        const chars = Array.from(spel.children);
-        for (const char of chars) {
-          char.classList.toggle("visible");
-          // DEBUG console.log(letter.textContent);
-          await sleep(char.classList.contains("visible") ? config.charInterval : 0);
-        }
-      }
-      // <<<
-      // >>> these next lines most of the WORK
+      // >>> these next lines do most of the WORK
       let elem;
       if (spelId !== "PAUSE") {
         // just pause and continue
         elem = document.getElementById(spelId);
-        if (config.charFades) {
-          await charToggle(elem);
-        } else {
-          elem.classList.toggle("visible");
-        }
-        // DEBUG console.log(elem.innerHTML);
+        await toggleSpel(elem, config);
+        // DEBUG devLog(elem.innerHTML);
       }
       // pause for both actual spels and PAUSE items
       await sleep(score[idx].pause * config.slower); // pauses usually taken from the temporal data
       if (spelId === "PAUSE") continue;
       // not a pause item, so check for fadeWords
       if (fadeWords > 0) {
-        fadePause = 0;
-        for (let fi = 0; fi < fadeWords; ++fi) {
-          let fidx = mod((fi + idx + 1), score.length);
-          fadePause += score[fidx].id != "PAUSE" ? score[fidx].pause : 0;
-        }
+        fadePause = sumPauses(score, idx, fadeWords, { skipPauses: true });
       }
       if (fadePause > 0) {
         // let ridx = mod(idx - fadeWords, score.length);
         // fadePause += score[idx].pause - score[ridx].pause;
-        sleep(fadePause * config.slower).then(async () => {
-          if (config.charFades) {
-            await charToggle(elem);
-          } else {
-            elem.classList.toggle("visible");
-          }
-        });
+        sleep(fadePause * config.slower).then(() => toggleSpel(elem, config));
       }
     } // end of loop thru current score
-    // DEBUG console.log("fadePause", fadePause, "interScr", config.interScore);
+    // DEBUG devLog("fadePause", fadePause, "interScr", config.interScore);
     await sleep((fadePause + config.interScore) * config.slower); // pause between scores
     // >>> remove old paragraph:
     if (config.fadeWords === 0) {
-      console.log(">>> remove old paragraph");
+      devLog(">>> remove old paragraph");
       displayElem.style.opacity = 0;
       await sleep(275 * config.slower);
       paras[paraNum].forEach(p => document.getElementById(p).classList.toggle("visible"));
@@ -146,7 +121,7 @@ async function play(config, displayElem, spels, paras, scores) {
     if (paraNum == 0) paraNum += config.startingPoint;
     //
     if (paraNum == config.startingPoint) {
-      console.log("--- end of cycle --- Duration:", msToTime(Date.now() - cycStart)); // DEBUG
+      devLog("--- end of cycle --- Duration:", msToTime(Date.now() - cycStart)); // DEBUG
       await sleep(config.interCycle * config.slower); // end of cycle pause
       if (config.creditsPause > 0) {
         let bl = document.getElementById("byline");

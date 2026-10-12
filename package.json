@@ -4,15 +4,26 @@
   "type": "module",
   "description": "Shared playback engine (spel scoring/animation) for Observable notebook-kit poem projects",
   "license": "MIT",
+  "main": "./index.js",
   "files": [
+    "index.js",
     "play.js",
-    "utils.js",
     "config.js",
+    "display.js",
+    "score.js",
+    "timing.js",
+    "math.js",
+    "dev.js",
     "README.md"
   ],
   "exports": {
+    ".": "./index.js",
     "./play.js": "./play.js",
-    "./utils.js": "./utils.js",
-    "./config.js": "./config.js"
+    "./config.js": "./config.js",
+    "./timing.js": "./timing.js",
+    "./math.js": "./math.js",
+    "./dev.js": "./dev.js",
+    "./display.js": "./display.js",
+    "./score.js": "./score.js"
   }
 }

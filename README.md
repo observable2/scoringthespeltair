@@ -6,8 +6,15 @@ that plays a sequence of "spels" according to a score, plus small utility helper
 
 ## Exports
 
+Everything is re-exported from the package root (`import { play, defaultConfig, sleep } from "scoringthespeltair"`),
+or import individual files:
+
 - `scoringthespeltair/play.js` → `play(config, displayElem, spels, paras, scores)`
-- `scoringthespeltair/utils.js` → `mod`, `sleep`, `msToTime`, `shuffle`, `createDevLog`
+- `scoringthespeltair/display.js` → `toggleSpel`
+- `scoringthespeltair/score.js` → `sumPauses`
+- `scoringthespeltair/timing.js` → `sleep`, `msToTime`
+- `scoringthespeltair/math.js` → `mod`, `shuffle`
+- `scoringthespeltair/dev.js` → `createDevLog`
 - `scoringthespeltair/config.js` → `defaultConfig` (generic timing/behavior defaults)
 
 ## Usage
