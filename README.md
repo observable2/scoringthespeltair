@@ -12,8 +12,9 @@ or import individual files:
 - `scoringthespeltair/play.js` → `play(config, displayElem, spels, paras, scores)`
 - `scoringthespeltair/display.js` → `toggleSpel`
 - `scoringthespeltair/score.js` → `sumPauses`
-- `scoringthespeltair/timetoread.js` → `timeToReadAlt` (no dependencies)
-- `scoringthespeltair/timetoread-rita.js` → `timeToRead`, `createTimeToRead`, `timeToReadDefaults` (needs `rita`; not in the root export)
+- `scoringthespeltair/text.js` → `normalizeToken` (markdown-aware token cleanup; default `normalize` for the RiTa estimator)
+- `scoringthespeltair/timetoread.js` → `wordTime`, `whitespaceTime`, `timeToRead` (legacy signature), `timeToReadDefaults` (no dependencies)
+- `scoringthespeltair/timetoread-rita.js` → `timeToReadRita`, `createTimeToReadRita`, `timeToReadRitaDefaults` (needs `rita`; not in the root export)
 - `scoringthespeltair/timing.js` → `sleep`, `msToTime`
 - `scoringthespeltair/math.js` → `mod`, `shuffle`
 - `scoringthespeltair/dev.js` → `createDevLog`
@@ -59,7 +60,7 @@ timings in seconds `* 1000`), not inside the library.
    node node_modules/scoringthespeltair/scripts/migrate-scores-to-ms.js data/scores.json          # preview
    node node_modules/scoringthespeltair/scripts/migrate-scores-to-ms.js data/scores.json --write
    ```
-3. Any project-side code calling `sleep()` or `timeToReadAlt()` with hundredths needs the
+3. Any project-side code calling `sleep()` or `timeToRead()` with hundredths needs the
    same x10.
 
 ## Versioning
@@ -83,38 +84,49 @@ consumer load RiTa, even one that only wants `sleep`. Policy:
   (`peerDependenciesMeta: { rita: { optional: true } }`), so projects that don't use it
   never install it.
 
-### Reading-time estimators (files created; refactor to the plan below pending)
+### Reading-time estimators
 
-`timing.js` currently holds two unexported work-in-progress estimators. They are **two
-different models, not two flavours of one function**:
+Two models, in separate files (a model is not just a different syllable counter):
 
-| | `timeToRead` (RiTa) | `timeToReadAlt` (no deps) |
+| | `timetoread.js` (default, no deps) | `timetoread-rita.js` (optional) |
 |---|---|---|
-| Signature | `(rawToken, lengthOfWhiteSpace, factor)` | `(word, idx, spaces, pauses, factor)` |
-| Model | length + syllables + vowels + punctuation + whitespace | 300 + 150 per vowel or `, : ; . ?` |
-| Whitespace | added into its own result | **mutates** `pauses[idx-1]` (75 per char, +1000 per newline) |
-| Units | milliseconds (constants still to be supplied) | milliseconds (was hundredths before 0.1.0) |
-| `factor` | divides the whole result | divides everything except the 30 base |
+| Functions | `wordTime(word, factor, overrides)`, `whitespaceTime(spaces, factor, overrides)`, legacy `timeToRead(word, idx, spaces, pauses, factor, overrides)` | `timeToReadRita(token, whitespace, factor, overrides)`, `createTimeToReadRita(overrides)` |
+| Model | `perLetter` x letters (Unicode `\p{L}`) + clause/sentence punctuation pauses; line breaks add `perNewline` | length + RiTa syllables + vowels + punctuation + whitespace |
+| Defaults | `perLetter` 112, `clausePause` 150, `sentencePause` 150, `perSpace` 0, `perNewline` 1000, `base` 0 (`timeToReadDefaults`, frozen) | `timeToReadRitaDefaults` (frozen); `normalize` = `normalizeToken` |
+| Side effects | none (only the legacy wrapper adds the whitespace pause to `pauses[idx-1]`) | none |
+| `factor` | divides every term (>1 = faster) | divides the whole result |
 
-RiTa supplies only `syllables`, `tokenize` and `isPunct`; punctuation is a regex, so
-syllable counting is the only real RiTa gain. Notes on `timeToReadAlt`: the side effect
-on `pauses` makes it hard to reuse or test; it ignores `! " ( ) -` etc.; `hundreths` typo.
+All times are ms. Both return the word's own time; whitespace is separate so the caller
+decides where a pause lands. Strip HTML from a token before measuring it (`normalizeToken`
+handles markdown, not HTML).
 
-Plan:
+### Calibration of the estimators (what the numbers rest on)
 
-- Own file (`timetoread.js`), not `timing.js`, so `sleep`/`msToTime` stay trivial and
-  `play.js` never depends on it. Projects import `scoringthespeltair/timetoread.js`
-  directly without loading the engine.
-- One contract for every estimator: `(word, options) => ms` for the word alone,
-  no mutation. Whitespace is a separate pure function, `pauseForWhitespace(spaces, factor)`
-  (ms); the caller adds it to the previous item's pause. Keep `timeToReadAlt`
-  as a thin wrapper with its old signature so existing notebooks keep working.
-- Default estimator = cleaned-up `timeToReadAlt` (dependency-free). The RiTa model goes
-  in `timetoread-rita.js` as a subpath export, not re-exported from `index.js`, with
-  `rita` an optional `peerDependency`. Tuning constants (`TIME_FACTOR`, `VOWEL_WEIGHT`,
-  `PUNCT_PAUSE_MS`, base) become an overridable defaults object.
-- Decide RiTa on evidence: the `reading` project has recorded word timings
-  (`nbks/data/reading.m4a.json`: start/end seconds per word) and the resulting pauses
-  (`scores.json`, ms after migration). Score both estimators against these; if RiTa doesn't
-  clearly win, drop it.
+Timestamped readings (word, start, end in seconds) exist in these places:
 
+- `reading/nbks/data/reading.m4a.json` (this folder's sibling; 89 words, 1 segment)
+- `/Users/kongqi/Library/CloudStorage/Dropbox/SitesShared/framework/reunion/src/data/reunion_tstamps.json` (60 words, 3 segments)
+- `.../framework/crawlitsimage/src/data/limageinhii.json` (4,458 words, 22 segments)
+
+`local-data/` (gitignored, so absent on a fresh clone) holds `timestamps-ms.json`, all three
+consolidated into scores-shaped ms data (`id`, `pause`, plus `word`, `start`, `end`, and
+`lineBreakAfter` where a `spels.json` layout exists), and `build-timestamps.mjs`, which
+rebuilds it. `pause` = start of a word to start of the next, as `alignedSpels()` computes it.
+Note the projects' own `scores.json` files can be hundredths or hand-estimated; use the
+timestamps, not the scores.
+
+Findings (start-to-start interval; fit on half of crawlitsimage, tested on the rest):
+
+- Letters predict word time better than vowel letters (held-out crawlitsimage r 0.59 ->
+  0.68, mean error 276 -> 201 ms; also better on reunion). Best fit about 112 ms per
+  letter with no base. Syllables, a length cap, and step/hinge terms added nothing.
+- RiTa's syllables differ from a vowel-group heuristic on only 5 of 89 words in `reading`
+  and made no measurable difference; its punctuation was replaceable by a regex. So RiTa
+  is not needed for accuracy (one small sample).
+- A line break adds about 1000 ms (reunion: +970 median, +1060 mean). `reading`'s layout
+  rows are not authored line breaks, so they don't test this.
+- Punctuation is **not calibrated**: crawlitsimage and reunion contain none, `reading` has
+  4-6 words. Those few show pauses well over a second, far above the 150 ms default
+  (and RiTa's 700). A punctuated recording is needed before changing these.
+- Pace differs by recording (mean interval about 560 ms crawlitsimage, 520 reunion, 370
+  reading); that is what `factor` is for. Everything above is one reader's pace.

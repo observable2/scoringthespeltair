@@ -1,2 +1,6 @@
 node_modules/
 .DS_Store
+
+# local-only working data (derived from other projects; not for the repo)
+local-data/
+package-lock.json

@@ -6,4 +6,5 @@ export { mod, shuffle } from "./math.js";
 export { createDevLog } from "./dev.js";
 export { toggleSpel } from "./display.js";
 export { sumPauses } from "./score.js";
-export { timeToReadAlt } from "./timetoread.js";
+export { timeToRead, wordTime, whitespaceTime, timeToReadDefaults } from "./timetoread.js";
+export { normalizeToken } from "./text.js";

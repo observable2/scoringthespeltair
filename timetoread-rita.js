@@ -1,9 +1,10 @@
 // RiTa-based reading-time estimate. Imports "rita", so it is NOT re-exported from index.js:
 // import it directly from "scoringthespeltair/timetoread-rita.js"
 import { RiTa } from "rita";
+import { normalizeToken } from "./text.js";
 
-// Tuning constants. null = still to be supplied (calls throw until every one is set,
-// either here or via overrides). All times are milliseconds (`base`, `punctPause`).
+// Tuning constants, frozen so no importer can change the shared defaults; projects
+// override per call or via createTimeToReadRita(). All times are milliseconds (`base`, `punctPause`).
 const defaults = Object.freeze({
   base: 33,
   timeFactor: 1, // divisor applied to the whole result
@@ -14,14 +15,14 @@ const defaults = Object.freeze({
   syllableWeight: 2, // multiplier on `base` per syllable
   whitespaceWeight: 2, // multiplier on `base` per unit of whitespace
   longTokenLength: 4, // tokens longer than this get vowelWeight per vowel, not once
-  normalize: (token) => token.trim() // assumption: the original normalize() isn't in the repo
+  normalize: normalizeToken // markdown-aware cleanup, see text.js
 });
 
-function timeToRead(rawToken, lengthOfWhiteSpace = 1, factor, overrides = {}) {
+function timeToReadRita(rawToken, lengthOfWhiteSpace = 1, factor, overrides = {}) {
   const o = { ...defaults, ...overrides };
   if (factor !== undefined) o.timeFactor = factor;
   for (const k of ["timeFactor", "vowelWeight", "punctPause"]) {
-    if (o[k] == null) throw new Error(`timeToRead: no value for "${k}" (set it in defaults or pass overrides)`);
+    if (o[k] == null) throw new Error(`timeToReadRita: no value for "${k}" (set it in defaults or pass overrides)`);
   }
   const token = o.normalize(rawToken);
   const { base } = o;
@@ -38,9 +39,9 @@ function timeToRead(rawToken, lengthOfWhiteSpace = 1, factor, overrides = {}) {
   return Math.round(ttr / o.timeFactor);
 }
 
-// returns a timeToRead with a project's overrides baked in
-function createTimeToRead(overrides = {}) {
-  return (rawToken, lengthOfWhiteSpace = 1, factor) => timeToRead(rawToken, lengthOfWhiteSpace, factor, overrides);
+// returns a timeToReadRita with a project's overrides baked in
+function createTimeToReadRita(overrides = {}) {
+  return (rawToken, lengthOfWhiteSpace = 1, factor) => timeToReadRita(rawToken, lengthOfWhiteSpace, factor, overrides);
 }
 
-export { timeToRead, createTimeToRead, defaults as timeToReadDefaults };
+export { timeToReadRita, createTimeToReadRita, defaults as timeToReadRitaDefaults };

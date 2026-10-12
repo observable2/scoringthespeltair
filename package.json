@@ -14,6 +14,7 @@
     "timing.js",
     "math.js",
     "dev.js",
+    "text.js",
     "timetoread.js",
     "timetoread-rita.js",
     "README.md"
@@ -28,10 +29,11 @@
     "./display.js": "./display.js",
     "./score.js": "./score.js",
     "./timetoread.js": "./timetoread.js",
-    "./timetoread-rita.js": "./timetoread-rita.js"
+    "./timetoread-rita.js": "./timetoread-rita.js",
+    "./text.js": "./text.js"
   },
   "peerDependencies": {
-    "rita": "*"
+    "rita": "^4.0.2-beta.16"
   },
   "peerDependenciesMeta": {
     "rita": {
