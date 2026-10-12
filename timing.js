@@ -1,6 +1,7 @@
-function sleep(hundredths, factor=1) {
-  if (hundredths < 0) hundredths = 0;
-  return new Promise(resolve => setTimeout(resolve, hundredths * 10 * factor));
+// all times in this library are milliseconds
+function sleep(ms, factor = 1) {
+  if (ms < 0) ms = 0;
+  return new Promise(resolve => setTimeout(resolve, ms * factor));
 }
 
 function msToTime(duration) {

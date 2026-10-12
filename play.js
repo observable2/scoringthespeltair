@@ -4,6 +4,8 @@ import { toggleSpel } from "./display.js";
 import { sumPauses } from "./score.js";
 async function play(config, displayElem, spels, paras, scores) {
   const devLog = createDevLog(config);
+  const legacyKeys = ["charInterval", "interCycle", "interScore", "scoredPause", "creditsPause"].filter(k => k in config);
+  if (legacyKeys.length) console.warn(`scoringthespeltair: config keys ${legacyKeys.join(", ")} are ignored; times are now milliseconds with an Ms suffix (e.g. interCycleMs)`);
   devLog("entered play()", scores);
   let cycStart,
     fadePause = 0,
@@ -27,7 +29,7 @@ async function play(config, displayElem, spels, paras, scores) {
     displayElem.style.opacity = 1;
   }
   // <<<
-  await sleep(config.interCycle); // pause before starting
+  await sleep(config.interCycleMs); // pause before starting
   //
   // allows you to set a different fadeWords value for each paragraph
  if (typeof config.paraFadeWords != "undefined") fadeWords = config.paraFadeWords[paraNum];
@@ -104,15 +106,15 @@ async function play(config, displayElem, spels, paras, scores) {
         sleep(fadePause * config.slower).then(() => toggleSpel(elem, config));
       }
     } // end of loop thru current score
-    // DEBUG devLog("fadePause", fadePause, "interScr", config.interScore);
-    await sleep((fadePause + config.interScore) * config.slower); // pause between scores
+    // DEBUG devLog("fadePause", fadePause, "interScr", config.interScoreMs);
+    await sleep((fadePause + config.interScoreMs) * config.slower); // pause between scores
     // >>> remove old paragraph:
     if (config.fadeWords === 0) {
       devLog(">>> remove old paragraph");
       displayElem.style.opacity = 0;
-      await sleep(275 * config.slower);
+      await sleep(2750 * config.slower);
       paras[paraNum].forEach(p => document.getElementById(p).classList.toggle("visible"));
-      await sleep(50 * config.slower);
+      await sleep(500 * config.slower);
     }
     // <<<
     // bump paraNum if needed
@@ -122,13 +124,13 @@ async function play(config, displayElem, spels, paras, scores) {
     //
     if (paraNum == config.startingPoint) {
       devLog("--- end of cycle --- Duration:", msToTime(Date.now() - cycStart)); // DEBUG
-      await sleep(config.interCycle * config.slower); // end of cycle pause
-      if (config.creditsPause > 0) {
+      await sleep(config.interCycleMs * config.slower); // end of cycle pause
+      if (config.creditsPauseMs > 0) {
         let bl = document.getElementById("byline");
         bl.style.opacity = 1;
-        await sleep(config.creditsPause * config.slower); // credits pause
+        await sleep(config.creditsPauseMs * config.slower); // credits pause
         bl.style.opacity = 0;
-        await sleep(config.interCycle * config.slower); // end of cycle pause
+        await sleep(config.interCycleMs * config.slower); // end of cycle pause
       }
     }
     // bump scoreNum
