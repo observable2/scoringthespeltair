@@ -8,6 +8,7 @@ import { timeToRead, wordTime, whitespaceTime, timeToReadDefaults } from "../tim
 
 const L = 112; // ms per letter
 const BREAK = 1000;
+const END2 = 2 * BREAK; // the end of a text that has another line break
 const NBSP = String.fromCodePoint(0xa0);
 const RESPECT = { whitespace: "respect" };
 
@@ -67,16 +68,16 @@ test("collapsed whitespace: only structure makes line breaks", () => {
   assert.equal(timeToRead("a b"), 2 * L + BREAK);
   assert.equal(timeToRead("a\nb"), 2 * L + BREAK); // a newline is just a space
   assert.equal(timeToRead("a  \t b"), 2 * L + BREAK);
-  assert.equal(timeToRead("a\n\nb"), 2 * L + 2 * BREAK); // blank line: a paragraph break
-  assert.equal(timeToRead("One two.\n\nThree"), 6 * L + 150 + BREAK + 5 * L + BREAK);
+  assert.equal(timeToRead("a\n\nb"), 2 * L + BREAK + END2); // blank line: a paragraph break
+  assert.equal(timeToRead("One two.\n\nThree"), 6 * L + 150 + BREAK + 5 * L + END2);
 });
 
 test("respected whitespace: newlines, spaces and tabs count", () => {
-  assert.equal(timeToRead("a\nb", 1, RESPECT), 2 * L + 2 * BREAK);
+  assert.equal(timeToRead("a\nb", 1, RESPECT), 2 * L + BREAK + END2);
   assert.equal(timeToRead("a b", 1, RESPECT), 2 * L + BREAK); // the ordinary space is free
   assert.equal(timeToRead("a  b", 1, RESPECT), 2 * L + 75 + BREAK);
   assert.equal(timeToRead("a\tb", 1, RESPECT), 2 * L + 300 + BREAK);
-  assert.equal(timeToRead("a\n    b", 1, RESPECT), 2 * L + BREAK + 4 * 75 + BREAK); // indentation counts
+  assert.equal(timeToRead("a\n    b", 1, RESPECT), 2 * L + BREAK + 4 * 75 + END2); // indentation counts
   assert.equal(timeToRead("  a", 1, RESPECT), L + 2 * 75 + BREAK); // so does leading space
   assert.equal(timeToRead("a  b", 1, { ...RESPECT, perSpace: 0 }), 2 * L + BREAK);
 });
@@ -88,10 +89,10 @@ test("no-break spaces are respected even when whitespace is collapsed", () => {
 });
 
 test("HTML structure", () => {
-  assert.equal(timeToRead("<p>a</p><p>b</p>"), 2 * L + 2 * BREAK); // a leading break is not a pause
-  assert.equal(timeToRead("<p>a</p>\n<p>b</p>"), 2 * L + 2 * BREAK);
-  assert.equal(timeToRead("a<br>b"), 2 * L + 2 * BREAK);
-  assert.equal(timeToRead("a<br/>b"), 2 * L + 2 * BREAK);
+  assert.equal(timeToRead("<p>a</p><p>b</p>"), 2 * L + BREAK + END2); // a leading break is not a pause
+  assert.equal(timeToRead("<p>a</p>\n<p>b</p>"), 2 * L + BREAK + END2);
+  assert.equal(timeToRead("a<br>b"), 2 * L + BREAK + END2);
+  assert.equal(timeToRead("a<br/>b"), 2 * L + BREAK + END2);
   assert.equal(timeToRead("<em>a</em> <strong>b</strong>"), 2 * L + BREAK); // inline tags add nothing
   assert.equal(timeToRead("<table><tr><td>a</td><td>b</td></tr></table>"), 2 * L + BREAK);
   assert.equal(timeToRead("<!-- hidden -->a"), L + BREAK);
@@ -102,24 +103,42 @@ test("HTML structure", () => {
 
 test("<pre> respects whitespace even when the rest is collapsed", () => {
   assert.equal(timeToRead("<pre>a   b</pre>"), 2 * L + 2 * 75 + BREAK);
-  assert.equal(timeToRead("<pre>\na\nb</pre>"), 2 * L + BREAK + BREAK); // the first newline is dropped
+  assert.equal(timeToRead("<pre>\na\nb</pre>"), 2 * L + BREAK + END2); // the first newline is dropped
 });
 
 test("Markdown structure", () => {
-  assert.equal(timeToRead("# Title\ntext"), 5 * L + BREAK + 4 * L + BREAK);
-  assert.equal(timeToRead("- a\n- b"), 2 * L + 2 * BREAK);
-  assert.equal(timeToRead("1. a\n2. b"), 2 * L + 2 * BREAK); // the numerals are not read
+  assert.equal(timeToRead("# Title\ntext"), 5 * L + BREAK + 4 * L + END2);
+  assert.equal(timeToRead("- a\n- b"), 2 * L + BREAK + END2);
+  assert.equal(timeToRead("1. a\n2. b"), 2 * L + BREAK + END2); // the numerals are not read
   assert.equal(timeToRead("> a\n> b"), 2 * L + BREAK); // quoted lines still flow together
-  assert.equal(timeToRead("a  \nb"), 2 * L + 2 * BREAK); // two trailing spaces: hard break
+  assert.equal(timeToRead("a  \nb"), 2 * L + BREAK + END2); // two trailing spaces: hard break
   assert.equal(timeToRead("see [this](http://example.com/x) now"), 10 * L + BREAK);
   assert.equal(timeToRead("see ![a pic](pic.png) now"), 6 * L + BREAK);
   assert.equal(timeToRead("[text][ref]\n\n[ref]: http://example.com"), 4 * L + BREAK);
   assert.equal(timeToRead("a**b**c"), 3 * L + BREAK);
   assert.equal(timeToRead("a\\.b"), 2 * L + 150 + BREAK); // an escaped mark is still shown
   assert.equal(timeToRead("```\na  b\n```"), 2 * L + 75 + BREAK); // code keeps its spacing
-  assert.equal(timeToRead("a\n\n---\n\nb"), 2 * L + 2 * BREAK);
+  assert.equal(timeToRead("a\n\n---\n\nb"), 2 * L + BREAK + END2);
 });
 
 test("an invalid whitespace option is rejected", () => {
   assert.throws(() => timeToRead("a", 1, { whitespace: "pre" }), /whitespace must be/);
+});
+
+test("the end of the text is worth two line breaks if the text has another line break", () => {
+  const plain = { whitespace: "respect" };
+  // no other line break: one
+  assert.equal(timeToRead("a b"), 2 * L + BREAK);
+  assert.equal(timeToRead("<p>a b</p>"), 2 * L + BREAK); // a leading and a trailing block edge are not "other"
+  assert.equal(timeToRead("a b\n", 1, plain), 2 * L + BREAK); // the real newline is the end
+  // another line break: two, and a real newline at the end coincides with them
+  assert.equal(timeToRead("a\nb", 1, plain), 2 * L + BREAK + END2);
+  assert.equal(timeToRead("a\nb\n", 1, plain), 2 * L + BREAK + END2);
+  assert.equal(timeToRead("a\n\nb\n\n"), 2 * L + BREAK + END2);
+  assert.equal(timeToRead("a\nb\n\n\n", 1, plain), 2 * L + BREAK + 3 * BREAK); // more real breaks than the end needs
+  assert.equal(timeToRead("\na", 1, plain), L + BREAK + END2); // a leading real newline is a line break too
+  // the counts are options
+  assert.equal(timeToRead("a\nb", 1, { ...plain, endBreaksMultiline: 3 }), 2 * L + BREAK + 3 * BREAK);
+  assert.equal(timeToRead("a b", 1, { endBreaks: 0 }), 2 * L);
+  assert.equal(timeToRead("a b", 2), wordTime("a", 2) + wordTime("b", 2) + BREAK / 2);
 });

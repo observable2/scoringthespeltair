@@ -93,7 +93,7 @@ Two models, in separate files (a model is not just a different syllable counter)
 | Functions | `timeToRead(text, factor, options)`, `wordTime(token, factor, options)`, `whitespaceTime(gap, factor, options)` | `timeToReadRita(token, whitespace, factor, overrides)`, `createTimeToReadRita(overrides)` |
 | Input | any amount of text, from one token up; may contain HTML and/or Markdown | one token (does not handle markup; its default `normalize` is `normalizeToken`) |
 | Model | `perLetter` x letters (Unicode `\p{L}`) + clause/sentence punctuation pauses + line breaks, spaces and tabs in gaps | length + RiTa syllables + vowels + punctuation + whitespace |
-| Defaults | `timeToReadDefaults` (frozen): `perLetter` 112, `clausePause` 150, `sentencePause` 150, `perSpace` 75, `perTab` 300, `perNewline` 1000, `base` 0, `html` true, `markdown` true, `whitespace` "collapse" | `timeToReadRitaDefaults` (frozen) |
+| Defaults | `timeToReadDefaults` (frozen): `perLetter` 112, `clausePause` 150, `sentencePause` 150, `perSpace` 75, `perTab` 300, `perNewline` 1000, `endBreaks` 1, `endBreaksMultiline` 2, `base` 0, `html` true, `markdown` true, `whitespace` "collapse" | `timeToReadRitaDefaults` (frozen) |
 | `factor` | divides every term (>1 = faster); each part is rounded to a whole ms | divides the whole result |
 
 All times are ms. `factor` and `options` are optional (`factor` defaults to 1).
@@ -119,17 +119,20 @@ All times are ms. `factor` and `options` are optional (`factor` defaults to 1).
    (`perNewline`), and spaces and tabs count `perSpace` and `perTab`, except that the one ordinary space
    between two words is free. Regardless of mode, text inside `<pre>` and Markdown code fences is
    respected, and `&nbsp;` / U+00A0 are always respected (so `a&nbsp;&nbsp;b` has one extra space).
-5. **The end of the text supplied counts as a line ending**, real end or not. A text that already
-   ends in a line break is not charged twice: `"foo"`, `"foo "` and `"foo\n"` all cost one `perNewline`
-   after the word. Text with no words costs 0.
+5. **The end of the text supplied counts as a line ending**, real end or not. It is worth `endBreaks`
+   (1) line breaks, or `endBreaksMultiline` (2) if the text contains at least one other line break
+   (a break between words, or a real newline at the very start; a leading block tag does not count).
+   A real line break at the very end coincides with the end rather than adding to it, so
+   `"foo"`, `"foo "` and `"foo\n"` cost the same, and `"a\nb"` and `"a\nb\n"` cost the same; more real
+   breaks than the end is worth (`"a\nb\n\n\n"`) are all counted. Text with no words costs 0.
 
 `timeToRead(text)` is exactly the sum of `wordTime` for each token, `whitespaceTime` for each gap, and the
 end-of-text break, so per-token estimates can be compared with recorded timings. `whitespaceTime(gap)`
 takes the whitespace (and any markup) between two tokens and, like `timeToRead`, never treats a lone
 space as a paragraph break.
 
-Not yet calibrated: both punctuation figures, `perSpace`, `perTab`, and the use of `perNewline` for prose
-paragraph breaks (it was measured on poem line breaks); digits are not read at all.
+Not yet calibrated: both punctuation figures, `perSpace`, `perTab`, `endBreaksMultiline`, and the use of
+`perNewline` for prose paragraph breaks (it was measured on poem line breaks); digits are not read at all.
 
 ### Calibration of the estimators (what the numbers rest on)
 
