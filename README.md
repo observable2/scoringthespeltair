@@ -13,7 +13,7 @@ or import individual files:
 - `scoringthespeltair/display.js` → `toggleSpel`
 - `scoringthespeltair/score.js` → `sumPauses`
 - `scoringthespeltair/text.js` → `normalizeToken` (markdown-aware token cleanup; default `normalize` for the RiTa estimator)
-- `scoringthespeltair/timetoread.js` → `wordTime`, `whitespaceTime`, `timeToRead` (legacy signature), `timeToReadDefaults` (no dependencies)
+- `scoringthespeltair/timetoread.js` → `timeToRead`, `wordTime`, `whitespaceTime`, `timeToReadDefaults` (no dependencies; markup handling is in the internal `markup.js`)
 - `scoringthespeltair/timetoread-rita.js` → `timeToReadRita`, `createTimeToReadRita`, `timeToReadRitaDefaults` (needs `rita`; not in the root export)
 - `scoringthespeltair/timing.js` → `sleep`, `msToTime`
 - `scoringthespeltair/math.js` → `mod`, `shuffle`
@@ -60,7 +60,7 @@ timings in seconds `* 1000`), not inside the library.
    node node_modules/scoringthespeltair/scripts/migrate-scores-to-ms.js data/scores.json          # preview
    node node_modules/scoringthespeltair/scripts/migrate-scores-to-ms.js data/scores.json --write
    ```
-3. Any project-side code calling `sleep()` or `timeToRead()` with hundredths needs the
+3. Any project-side code calling `sleep()` with hundredths needs the
    same x10.
 
 ## Versioning
@@ -90,15 +90,46 @@ Two models, in separate files (a model is not just a different syllable counter)
 
 | | `timetoread.js` (default, no deps) | `timetoread-rita.js` (optional) |
 |---|---|---|
-| Functions | `wordTime(word, factor, overrides)`, `whitespaceTime(spaces, factor, overrides)`, legacy `timeToRead(word, idx, spaces, pauses, factor, overrides)` | `timeToReadRita(token, whitespace, factor, overrides)`, `createTimeToReadRita(overrides)` |
-| Model | `perLetter` x letters (Unicode `\p{L}`) + clause/sentence punctuation pauses; line breaks add `perNewline` | length + RiTa syllables + vowels + punctuation + whitespace |
-| Defaults | `perLetter` 112, `clausePause` 150, `sentencePause` 150, `perSpace` 0, `perNewline` 1000, `base` 0 (`timeToReadDefaults`, frozen) | `timeToReadRitaDefaults` (frozen); `normalize` = `normalizeToken` |
-| Side effects | none (only the legacy wrapper adds the whitespace pause to `pauses[idx-1]`) | none |
-| `factor` | divides every term (>1 = faster) | divides the whole result |
+| Functions | `timeToRead(text, factor, options)`, `wordTime(token, factor, options)`, `whitespaceTime(gap, factor, options)` | `timeToReadRita(token, whitespace, factor, overrides)`, `createTimeToReadRita(overrides)` |
+| Input | any amount of text, from one token up; may contain HTML and/or Markdown | one token (does not handle markup; its default `normalize` is `normalizeToken`) |
+| Model | `perLetter` x letters (Unicode `\p{L}`) + clause/sentence punctuation pauses + line breaks, spaces and tabs in gaps | length + RiTa syllables + vowels + punctuation + whitespace |
+| Defaults | `timeToReadDefaults` (frozen): `perLetter` 112, `clausePause` 150, `sentencePause` 150, `perSpace` 75, `perTab` 300, `perNewline` 1000, `base` 0, `html` true, `markdown` true, `whitespace` "collapse" | `timeToReadRitaDefaults` (frozen) |
+| `factor` | divides every term (>1 = faster); each part is rounded to a whole ms | divides the whole result |
 
-All times are ms. Both return the word's own time; whitespace is separate so the caller
-decides where a pause lands. Strip HTML from a token before measuring it (`normalizeToken`
-handles markdown, not HTML).
+All times are ms. `factor` and `options` are optional (`factor` defaults to 1).
+
+#### How `timeToRead(text, factor, options)` reads a text
+
+1. **Markup is removed, not read.** HTML tags (including `<script>`, `<style>`, comments), entities
+   (`&amp;`, `&nbsp;`, `&mdash;`, `&#8212;`, ...; an unknown named entity is left as written) and Markdown
+   (links keep their text but not their target, images and reference definitions vanish, list numerals and
+   heading marks are dropped, `\.` escapes are honoured). It is a pragmatic subset of both syntaxes,
+   not a full parser; `html: false` / `markdown: false` switch either off. On a lone token, `wordTime`
+   handles inline markup but cannot see line-level Markdown (a list marker needs its line).
+2. **Words** cost `perLetter` per Unicode letter (digits cost nothing for now) plus `clausePause` for each
+   of `, ; : — – ” )` and `sentencePause` for each of `. ? ! …` inside the token. Only
+   that punctuation set is accounted for.
+3. **Structure becomes line breaks.** Block tags (`<p>`, `<div>`, `<br>`, `<li>`, headings, table rows,
+   ...), Markdown paragraph breaks (a blank line), headings, list items, rules and hard breaks
+   (two trailing spaces or a backslash) each end a line. Any run of these between two words is one
+   break (`perNewline`), never more; a break at the very start of the text is not a pause.
+4. **Whitespace** is `whitespace: "collapse"` by default, as the DOM and Markdown render: any run of
+   spaces, tabs and newlines is a single ordinary space and costs nothing (a source newline is not a break).
+   `whitespace: "respect"` is for text shown with `white-space: pre`-like behaviour: every newline is a break
+   (`perNewline`), and spaces and tabs count `perSpace` and `perTab`, except that the one ordinary space
+   between two words is free. Regardless of mode, text inside `<pre>` and Markdown code fences is
+   respected, and `&nbsp;` / U+00A0 are always respected (so `a&nbsp;&nbsp;b` has one extra space).
+5. **The end of the text supplied counts as a line ending**, real end or not. A text that already
+   ends in a line break is not charged twice: `"foo"`, `"foo "` and `"foo\n"` all cost one `perNewline`
+   after the word. Text with no words costs 0.
+
+`timeToRead(text)` is exactly the sum of `wordTime` for each token, `whitespaceTime` for each gap, and the
+end-of-text break, so per-token estimates can be compared with recorded timings. `whitespaceTime(gap)`
+takes the whitespace (and any markup) between two tokens and, like `timeToRead`, never treats a lone
+space as a paragraph break.
+
+Not yet calibrated: both punctuation figures, `perSpace`, `perTab`, and the use of `perNewline` for prose
+paragraph breaks (it was measured on poem line breaks); digits are not read at all.
 
 ### Calibration of the estimators (what the numbers rest on)
 

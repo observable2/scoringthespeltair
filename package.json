@@ -15,6 +15,7 @@
     "math.js",
     "dev.js",
     "text.js",
+    "markup.js",
     "timetoread.js",
     "timetoread-rita.js",
     "README.md"
@@ -40,5 +41,8 @@
       "optional": true
     }
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "scripts": {
+    "test": "node --test"
+  }
 }
