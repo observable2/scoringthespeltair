@@ -126,10 +126,10 @@ async function play(config, fieldElem, spels, paras, scores) {
       devLog("--- end of cycle --- Duration:", msToTime(Date.now() - cycStart)); // DEBUG
       await sleep(config.interCycleMs * config.slower); // end of cycle pause
       if (config.creditsPauseMs > 0) {
-        let bl = document.getElementById("byline");
-        bl.style.opacity = 1;
+        const bl = document.getElementById("byline"); // optional element
+        if (bl) bl.style.opacity = 1;
         await sleep(config.creditsPauseMs * config.slower); // credits pause
-        bl.style.opacity = 0;
+        if (bl) bl.style.opacity = 0;
         await sleep(config.interCycleMs * config.slower); // end of cycle pause
       }
     }
