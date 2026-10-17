@@ -2,7 +2,7 @@ import { sleep, msToTime } from "./timing.js";
 import { createDevLog } from "./dev.js";
 import { toggleSpel } from "./display.js";
 import { sumPauses } from "./score.js";
-async function play(config, displayElem, spels, paras, scores) {
+async function play(config, fieldElem, spels, paras, scores) {
   const devLog = createDevLog(config);
   const legacyKeys = ["charInterval", "interCycle", "interScore", "scoredPause", "creditsPause"].filter(k => k in config);
   if (legacyKeys.length) console.warn(`scoringthespeltair: config keys ${legacyKeys.join(", ")} are ignored; times are now milliseconds with an Ms suffix (e.g. interCycleMs)`);
@@ -23,10 +23,10 @@ async function play(config, displayElem, spels, paras, scores) {
     prevScore,
     rdnScore,
     toggle = true;
-   // >>> show whatever is currently visible in the display element
+   // >>> show whatever is currently visible in the field element
   if (config.fadeWords < 1 ) {
-    devLog(">>> show whatever is currently visible in the display element");
-    displayElem.style.opacity = 1;
+    devLog(">>> show whatever is currently visible in the field element");
+    fieldElem.style.opacity = 1;
   }
   // <<<
   await sleep(config.interCycleMs); // pause before starting
@@ -111,7 +111,7 @@ async function play(config, displayElem, spels, paras, scores) {
     // >>> remove old paragraph:
     if (config.fadeWords === 0) {
       devLog(">>> remove old paragraph");
-      displayElem.style.opacity = 0;
+      fieldElem.style.opacity = 0;
       await sleep(2750 * config.slower);
       paras[paraNum].forEach(p => document.getElementById(p).classList.toggle("visible"));
       await sleep(500 * config.slower);

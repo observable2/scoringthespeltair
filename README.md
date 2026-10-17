@@ -9,7 +9,7 @@ that plays a sequence of "spels" according to a score, plus small utility helper
 Everything is re-exported from the package root (`import { play, defaultConfig, sleep } from "scoringthespeltair"`),
 or import individual files:
 
-- `scoringthespeltair/play.js` → `play(config, displayElem, spels, paras, scores)`
+- `scoringthespeltair/play.js` → `play(config, fieldElem, spels, paras, scores)`
 - `scoringthespeltair/display.js` → `toggleSpel`
 - `scoringthespeltair/center.js` → `centerField` (browser only; see [Centring on the extent](#centring-on-the-extent))
 - `scoringthespeltair/score.js` → `sumPauses`
