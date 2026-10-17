@@ -11,6 +11,7 @@ or import individual files:
 
 - `scoringthespeltair/play.js` → `play(config, displayElem, spels, paras, scores)`
 - `scoringthespeltair/display.js` → `toggleSpel`
+- `scoringthespeltair/center.js` → `centerField` (browser only; see [Centring on the extent](#centring-on-the-extent))
 - `scoringthespeltair/score.js` → `sumPauses`
 - `scoringthespeltair/text.js` → `normalizeToken` (markdown-aware token cleanup; default `normalize` for the RiTa estimator)
 - `scoringthespeltair/timetoread.js` → `timeToRead`, `wordTime`, `whitespaceTime`, `timeToReadDefaults` (no dependencies; markup handling is in the internal `markup.js`)
@@ -38,8 +39,47 @@ export { config };
 
 ```js
 const { play } = await import("scoringthespeltair/play.js");
-play(config, stageElem, spels, paras, scores);
+play(config, fieldElem, spels, paras, scores);
 ```
+
+## Centring on the extent
+
+`centerField(field, { items = ".spel" })` does what poetry typesetters call "centring on
+the longest line", generalised: the field is positioned so that the horizontal extent of
+its items (leftmost left edge to rightmost right edge) is centred in the viewport, while
+the items keep their own relative positions (a straight left margin for most lines).
+
+It works in three steps:
+
+1. **Measure** the items' extent relative to the field's own left edge, in `vw`. That makes
+   it independent of where the field currently is and, when type and spel offsets are sized
+   in `vw`, of the viewport width.
+2. **Publish** it as two CSS custom properties on the field: `--extent-x` (leftmost edge's
+   offset from the field's left edge) and `--extent-w` (width of the extent).
+3. **Let CSS centre**, so it stays responsive with no JS involved:
+
+```css
+#field {
+  position: absolute;
+  left: calc((100% - var(--extent-w, 0vw)) / 2 - var(--extent-x, 0vw));
+}
+```
+
+```js
+import { centerField } from "scoringthespeltair";
+const measure = centerField(fieldElem); // after the spels are in the DOM
+```
+
+JS re-measures only when glyph widths can change: when fonts finish loading
+(`document.fonts`) and on `resize` (which matters only if type is not sized in `vw`).
+
+- `items` may be a selector (default `".spel"`), a NodeList or an array. Pass a subset to
+  centre on, say, only the current paragraph, and call the returned `measure()` whenever
+  that set changes. Items with zero width (empty, `display: none`) are ignored.
+- The default measures all spels, visible or not (`opacity: 0` items still have layout).
+- The field needs a `left` that depends on the variables as above, and the items must be
+  laid out inside the field, with no transform on it that scales or shifts horizontally.
+- Browser only. The module touches `document`/`window` only when `centerField` is called.
 
 ## Units: milliseconds everywhere
 

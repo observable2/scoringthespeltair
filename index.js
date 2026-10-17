@@ -5,6 +5,7 @@ export { sleep, msToTime } from "./timing.js";
 export { mod, shuffle } from "./math.js";
 export { createDevLog } from "./dev.js";
 export { toggleSpel } from "./display.js";
+export { centerField } from "./center.js";
 export { sumPauses } from "./score.js";
 export { timeToRead, wordTime, whitespaceTime, timeToReadDefaults } from "./timetoread.js";
 export { normalizeToken } from "./text.js";
