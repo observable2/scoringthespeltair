@@ -1,0 +1,657 @@
+<!doctype html>
+<notebook theme="air">
+  <title>Scoring Template</title>
+  <script id="1" type="text/markdown" output="frame">
+    # Scoring Template
+    #### Version 1.0.0
+    ## Scoring the Spelt Air
+    #### *This is the working document, Fall 2026*
+    *Scoring the Spelt Air* is a gathering of tools and conventions that will allow you to draft and animate pieces of writing for display on screens and the web. It uses the Observable Notebook platform for drafting and configuration. This notebook itself can be copied (more properly, *forked*) so as to allow you to draft and configure your own pieces of writing. Doing so then allows you to produce and download playable specifications for your writing. A separate suite of JavaScript programs will then *play* the animations you have composed and designed.
+  </script>
+  <script id="3254" type="module" pinned="">
+    const config = {
+      // see notes (in Markdown cells) on Configuration below
+      // Paragraphs, columns, fields etc. are no longer configured here: they come from the
+      // <!--@ ... --> markup in the galley (see `containment` and `layout` below).
+      clmnRight: 48 // vw added to the left of every spel in a clmn named "right" (left clmn of the sample is 42.4vw wide)
+      // a clmn named "left" (or unnamed, or no clmn at all) adds 0
+    }
+  </script>
+  <script id="5875" type="module" pinned="">
+    // paragraph name -> array of spel ids; names come from the markup (para:name) or are para1, para2, ...
+    const paras = layout.para
+    display(paras)
+  </script>
+  <script id="2861" type="module" pinned="">
+    const layout = mapParaSpels(spanned)
+    const spels = layout.spels
+    display(layout)
+    display(spels)
+  </script>
+  <script id="5522" type="module" pinned="">
+    const spanString = Array.from(spels.values())
+      .map((spel) => spel.html)
+      .join("")
+    display(spanString)
+  </script>
+  <script id="582" type="module" pinned="">
+    // `galley` tracks the element with id="galley" (defined in the separate HTML cell).
+    // It emits only once the element exists, and emits again whenever the HTML cell
+    // re-renders and produces a new node, so dependent cells always see a live element.
+    const galley = Generators.observe((notify) => {
+      let current = null;
+      const check = () => {
+        const el = document.getElementById("galley");
+        if (el && el !== current) notify((current = el));
+      };
+      const observer = new MutationObserver(check);
+      observer.observe(document.body, {childList: true, subtree: true});
+      check();
+      invalidation.then(() => observer.disconnect());
+    });
+  </script>
+  <script id="5891" type="text/html" pinned="">
+    <div id="galley" class="set"><!--@ para clmn:left ofld -->Cobbett’s View
+                            broad vista north
+    Thomas’  Stone
+                            high downs south
+
+    fifty years     all that change
+    no   time       not this way
+    <!--@ /para /clmn para clmn:right -->
+    head winds
+                            kept     you home
+    lee way
+                            brings us    here
+
+    old  school   where we lived
+    new lives      now    we learn
+    <!--@ /para /clmn /ofld para ofld -->
+    hard work
+                            can not last
+    gentle passions
+                            all that’s left
+
+    once             we sang near here
+    and now     we dance again
+    <!--@ /para /ofld --></div>
+  </script>
+  <script id="4401" type="module" pinned="">
+    // Measures the spanned galley and groups its spels by the markup's containment.
+    // Returns { text, spels: Map(id -> spel), para, clmn, ofld, sctn, chpt }
+    // where each of the last five is { name: [spel ids in text order] }.
+    const mapParaSpels = (spanned) => {
+      const spels = new Map();
+      const groups = { para: {}, clmn: {}, ofld: {}, sctn: {}, chpt: {} };
+      for (const spel of getSpelArray(spanned)) {
+        spels.set(spel.id, spel);
+        for (const kind of Object.keys(groups))
+          if (spel[kind]) (groups[kind][spel[kind]] ??= []).push(spel.id);
+      }
+      return { text: spanned.parsed.text, spels, ...groups };
+    }
+  </script>
+  <script id="844" type="module" pinned="">
+    // Builds the array of spel objects from the output of addSpansTo(): { elem, parsed }.
+    // leftvw/topvw/widthvw/heightvw are the BOUNDING BOX of the spel's rendered span in vw, relative
+    // to its container (ink is not measured: glyph overhangs are the font's business, and are dealt
+    // with only if a piece needs them):
+    //   top  : 0 is the top of the top-most spel box of the spel's ofld (the whole galley is one
+    //          ofld, called "galley", when the markup names none); a clmn starts again at 0, so
+    //          a spel's top is its distance from the top of its own clmn
+    //   left : the box's distance from the galley's left edge, plus the offset of the spel's clmn
+    //          (config.clmnRight for a clmn named "right", otherwise 0)
+    // html is an absolutely positioned span that renders the spel at exactly leftvw/topvw.
+    // Spels keep their inner markup.
+    const r3 = (x) => Math.round(x * 1000) / 1000;
+    // Slug of a spel's text, for its id: lowercase, accents folded (é -> e), apostrophes and quotes
+    // dropped (Cobbett’s -> cobbetts), any other run of characters that are not letters or digits
+    // (spaces, punctuation, line breaks: a multi-word spel is one slug) becomes one hyphen, none at
+    // the ends. Letters of any script are kept, so a non-Latin spel doesn't slug to nothing.
+    const slugify = (text) =>
+      text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase()
+        .replace(/['\u2018\u2019\u201c\u201d"`]/g, "")
+        .replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "");
+    const clmnOffset = (name) => (name === "right" ? config.clmnRight : 0);
+
+    // Box of one spel span (px, relative to the container's top left), as an absolutely
+    // positioned (blockified) copy of the span would have it.
+    const measureSpel = (span, boxRect, ctx) => {
+      const cs = getComputedStyle(span);
+      ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const strut = ctx.measureText("x");
+      const lh = parseFloat(cs.lineHeight); // NaN for "normal"
+      const halfLeading = Number.isNaN(lh)
+        ? 0
+        : (lh - (strut.fontBoundingBoxAscent + strut.fontBoundingBoxDescent)) / 2;
+      const rects = Array.from(span.getClientRects()); // one per line of a multi-line spel
+      const left = Math.min(...rects.map((r) => r.left));
+      const right = Math.max(...rects.map((r) => r.right));
+      const top = rects[0].top - halfLeading; // the inline box sits half the leading below the block's top
+      const bottom = rects[rects.length - 1].bottom + halfLeading;
+      return { left: left - boxRect.left, top: top - boxRect.top, width: right - left, height: bottom - top };
+    };
+
+    // Boxes (px) of all the spel spans of a spanned element, in order. A copy is measured in a
+    // hidden, attached host (offsets need a rendered element); the spans are positioned by vw font
+    // sizes, so the host's width doesn't matter. The copy has no ofld rules, so vertical positions
+    // are those of the unbroken text, "virtually".
+    const measureBoxes = (elem) => {
+      const host = document.createElement("div");
+      host.style.cssText = "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none";
+      const box = elem.cloneNode(true);
+      box.querySelectorAll(".ofld-rule").forEach((hr) => hr.remove());
+      host.append(box);
+      document.body.append(host);
+      try {
+        const ctx = document.createElement("canvas").getContext("2d");
+        const boxRect = box.getBoundingClientRect();
+        return Array.from(box.querySelectorAll("span.spelm"), (span) => measureSpel(span, boxRect, ctx));
+      } finally {
+        host.remove();
+      }
+    };
+
+    const getSpelArray = (spanned, size = 0) => {
+      const { elem, parsed, cont } = spanned;
+      // addSpansTo has already moved every clmn up to the top of its ofld, so these are actual
+      const measured = measureBoxes(elem);
+      // inner markup of each spel (rich markup survives; stray markup comments don't)
+      const comments = new RegExp("<!" + "--[\\s\\S]*?--" + ">", "g");
+      // and the elements that enclose it in the galley (e.g. <em>), cloned around it
+      const inners = Array.from(elem.querySelectorAll("span.spelm"), (s) => {
+        let inner = s.innerHTML.replace(comments, "");
+        for (let a = s.parentElement; a && a !== elem; a = a.parentElement) {
+          if (a.classList.contains("clmn-lift")) continue; // display wrapper, not the spel's markup
+          const tag = a.cloneNode(false).outerHTML;
+          inner = tag.slice(0, tag.lastIndexOf("</")) + inner + tag.slice(tag.lastIndexOf("</"));
+        }
+        return inner;
+      });
+      const spels = parsed.spel.map((p, i) => ({ ...p, ...cont[i], ofld: cont[i].ofld ?? "galley" }));
+      // ofld origins: the top of each ofld's top-most box (each clmn's top-most box is already there)
+      const origin = new Map();
+      spels.forEach((s, i) => origin.set(s.ofld, Math.min(origin.get(s.ofld) ?? Infinity, measured[i].top)));
+      return spels.map((s, i) => {
+        const m = measured[i];
+        // slug-number; the number keeps ids unique. An id that would start with a digit (a spel
+        // like "1984", or one with no letters at all) gets "s-" so it can be used as #id in css
+        const base = [slugify(s.text), i + size].filter((x) => x !== "").join("-");
+        const id = /^\d/.test(base) ? `s-${base}` : base;
+        const leftvw = r3(pxToVw(m.left)); // actual: addSpansTo already offset the clmn
+        const topvw = r3(pxToVw(m.top - origin.get(s.ofld)));
+        const inner = inners[i];
+        const attr = id.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+        return {
+          id, index: i + size, string: s.text, start: s.start, end: s.end, implicit: !!s.implicit,
+          para: s.para, clmn: s.clmn, ofld: s.ofld, sctn: s.sctn, chpt: s.chpt,
+          leftvw, topvw, widthvw: r3(pxToVw(m.width)), heightvw: r3(pxToVw(m.height)),
+          html: `<span id="${attr}" class="spel" style="left:${leftvw}vw;top:${topvw}vw">${inner}</span>`
+        };
+      });
+    }
+  </script>
+  <script id="974" type="module" pinned="">
+    // Wraps the text range [start, end) (character offsets into the element's text, comments
+    // excluded, as parseMarkup counts them) in <span class="spelm" data-i="i">. The range may
+    // cross element boundaries: partly covered elements are split, so rich markup is kept.
+    const wrapSpel = (root, start, end, i, style = "") => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let pos = 0, sNode, sOff, eNode, eOff;
+      while (walker.nextNode()) {
+        const n = walker.currentNode, len = n.data.length;
+        if (!sNode && start < pos + len) { sNode = n; sOff = start - pos; }
+        if (sNode && end <= pos + len) { eNode = n; eOff = end - pos; break; }
+        pos += len;
+      }
+      if (!eNode) throw new Error(`Spel ${i} [${start}, ${end}) not found in the text`);
+      const range = document.createRange();
+      range.setStart(sNode, sOff);
+      range.setEnd(eNode, eOff);
+      const span = document.createElement("span");
+      span.className = "spelm";
+      span.dataset.i = i;
+      if (style) span.style.cssText = style;
+      span.append(range.extractContents());
+      range.insertNode(span);
+    };
+
+    // Wraps the text range [start, end) in `wrapper` (an element). Like wrapSpel, but a boundary
+    // that falls at the edge of a spel span goes outside it, so spels are never split.
+    const wrapRange = (root, start, end, wrapper) => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let pos = 0, sNode, sOff, eNode, eOff;
+      while (walker.nextNode()) {
+        const n = walker.currentNode, len = n.data.length;
+        if (!sNode && start < pos + len) { sNode = n; sOff = start - pos; }
+        if (sNode && end <= pos + len) { eNode = n; eOff = end - pos; break; }
+        pos += len;
+      }
+      if (!eNode) throw new Error(`Range [${start}, ${end}) not found in the text`);
+      const textEnd = (spel, first) => { // first or last text node of a spel span
+        const w = document.createTreeWalker(spel, NodeFilter.SHOW_TEXT);
+        let node = null;
+        while (w.nextNode()) { node = w.currentNode; if (first) break; }
+        return node;
+      };
+      const range = document.createRange();
+      const sSpel = sNode.parentElement.closest("span.spelm");
+      const eSpel = eNode.parentElement.closest("span.spelm");
+      if (sSpel && sOff === 0 && textEnd(sSpel, true) === sNode) range.setStartBefore(sSpel);
+      else range.setStart(sNode, sOff);
+      if (eSpel && eOff === eNode.data.length && textEnd(eSpel, false) === eNode) range.setEndAfter(eSpel);
+      else range.setEnd(eNode, eOff);
+      wrapper.append(range.extractContents());
+      range.insertNode(wrapper);
+    };
+
+    // Inserts `node` at character offset `offset` of the element's text (between text nodes).
+    const insertAtOffset = (root, offset, node) => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let pos = 0;
+      while (walker.nextNode()) {
+        const n = walker.currentNode;
+        if (offset < pos + n.data.length) {
+          const range = document.createRange();
+          range.setStart(n, offset - pos);
+          range.collapse(true);
+          return range.insertNode(node);
+        }
+        pos += n.data.length;
+      }
+      root.append(node);
+    };
+
+    // Takes the galley element (an element of class "set" holding text and <!--@ ... --> markup)
+    // and returns { elem, parsed, cont }: parsed is parseMarkup's result for the galley, cont is
+    // its containment, and elem is a copy of the galley for display, in which
+    //   - every spel, explicit or implicit, is wrapped in <span class="spelm">;
+    //   - spels in a clmn are really offset, by config.clmnRight for clmn:right (so their
+    //     horizontal measurements are actual ones);
+    //   - each clmn is moved up (in an absolutely positioned wrapper, so no blank space is left)
+    //     until its top-most spel box is level with the top of its ofld: like an ofld, a clmn
+    //     starts again at 0. The spels' vertical
+    //     measurements, taken from this element, are therefore actual ones;
+    //   - every ofld after the first is preceded by <hr class="ofld-rule">. The rules are for
+    //     the maker only: getSpelArray measures without them, so that vertical positions stay
+    //     "virtual" (each ofld measured from the top of its top-most spel box).
+    const addSpansTo = (galleyElem) => {
+      const parsed = parseMarkup(galleyElem);
+      const cont = containment(parsed);
+      const elem = galleyElem.cloneNode(true);
+      elem.removeAttribute("id");
+      // rules first: they only split text nodes, never change the text
+      parsed.ofld.filter((o) => parsed.spel.length && o.start > parsed.spel[0].start).forEach((o) => {
+        const hr = document.createElement("hr");
+        hr.className = "ofld-rule";
+        insertAtOffset(elem, o.start, hr);
+      });
+      parsed.spel.forEach((s, i) => {
+        const shift = clmnOffset(cont[i].clmn);
+        wrapSpel(elem, s.start, s.end, i, shift ? `position:relative;left:${shift}vw` : "");
+      });
+      // a new clmn resets the top, as a new ofld does: measure the unshifted text, then lift
+      // each clmn by the distance between its own top and that of its ofld. The lifted clmn is
+      // wrapped in an absolutely positioned <div class="clmn-lift">, so it leaves the flow and
+      // leaves no blank lines behind (its lines still break as before; it is anchored at the
+      // left edge of the galley).
+      const boxes = measureBoxes(elem);
+      const ofldTop = new Map();
+      cont.forEach((c, i) => {
+        const o = c.ofld ?? "galley";
+        ofldTop.set(o, Math.min(ofldTop.get(o) ?? Infinity, boxes[i].top));
+      });
+      const lifts = parsed.clmn.map((e, j) => {
+        const key = e.name ?? `clmn${j + 1}`;
+        const mine = cont.map((c, i) => i).filter((i) => cont[i].clmn === key
+          && parsed.spel[i].start >= e.start && parsed.spel[i].end <= e.end);
+        if (!mine.length) return { e, lift: 0 };
+        const top = Math.min(...mine.map((i) => boxes[i].top));
+        return { e, lift: top - ofldTop.get(cont[mine[0]].ofld ?? "galley") };
+      });
+      lifts.filter(({ lift }) => lift > 0).sort((a, b) => a.e.start - b.e.start || b.e.end - a.e.end)
+        .forEach(({ e, lift }) => {
+          const div = document.createElement("div");
+          div.className = "clmn-lift";
+          div.style.cssText = `position:absolute;left:0;margin-top:${-r3(pxToVw(lift))}vw`;
+          wrapRange(elem, e.start, e.end, div);
+        });
+      return { elem, parsed, cont };
+    }
+  </script>
+  <script id="5881" type="module" pinned="">
+    // Markup syntax: <!--@ token token ... -->
+    //   open:  kind or kind:name   e.g. para, clmn:left
+    //   close: /kind               e.g. /para
+    // kinds: spel, para, clmn, ofld, sctn, chpt
+    // Several tokens may share a comment, so boundaries can coincide.
+    // Within one comment all closes are applied before all opens, so
+    // "/para para" ends one para and starts the next, whatever the order.
+    const markupKinds = ["spel", "para", "clmn", "ofld", "sctn", "chpt"];
+
+    const parseMarkup = (root) => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT);
+      const open = Object.fromEntries(markupKinds.map((k) => [k, []]));
+      const ents = Object.fromEntries(markupKinds.map((k) => [k, []]));
+      let text = "";
+      while (walker.nextNode()) {
+        const n = walker.currentNode;
+        if (n.nodeType === Node.TEXT_NODE) { text += n.data; continue; }
+        if (!n.data.startsWith("@")) continue; // ordinary comment
+        const toks = n.data.slice(1).trim().split(/\s+/).filter(Boolean)
+          .map((t) => {
+            const m = t.match(/^(\/)?(\w+)(?::(.+))?$/);
+            if (!m || !markupKinds.includes(m[2])) throw new Error(`Bad markup token: ${t}`);
+            return { close: !!m[1], kind: m[2], name: m[3] };
+          })
+          .sort((a, b) => b.close - a.close); // closes first
+        for (const t of toks) {
+          if (t.close) {
+            const o = open[t.kind].pop();
+            if (!o) throw new Error(`Unmatched /${t.kind} at offset ${text.length}`);
+            ents[t.kind].push({ kind: t.kind, name: o.name, start: o.start, end: text.length, text: text.slice(o.start, text.length) });
+          } else open[t.kind].push({ name: t.name, start: text.length });
+        }
+      }
+      for (const k of markupKinds) if (open[k].length) throw new Error(`Unclosed ${k}`);
+
+      // implicit spels: whitespace-separated runs outside explicit spels
+      const explicit = ents.spel.sort((a, b) => a.start - b.start);
+      const all = [...explicit];
+      let pos = 0;
+      const addGap = (from, to) => {
+        for (const m of text.slice(from, to).matchAll(/\S+/g))
+          all.push({ kind: "spel", start: from + m.index, end: from + m.index + m[0].length, text: m[0], implicit: true });
+      };
+      for (const s of explicit) { addGap(pos, s.start); pos = Math.max(pos, s.end); }
+      addGap(pos, text.length);
+      ents.spel = all.sort((a, b) => a.start - b.start || a.end - b.end);
+      for (const k of markupKinds) ents[k].sort((a, b) => a.start - b.start || a.end - b.end);
+      return { text, ...ents };
+    }
+  </script>
+  <script id="5890" type="module" pinned="">
+    // Containment: for every spel (in parsed.spel order) the innermost para, clmn, ofld, sctn and
+    // chpt whose range contains it, or null. Unnamed entities are called kind1, kind2, ... in text
+    // order (para1, para2, ...), so named and unnamed ones can be mixed.
+    const containment = (parsed) => {
+      const kinds = ["para", "clmn", "ofld", "sctn", "chpt"];
+      const keyed = Object.fromEntries(kinds.map((k) => [k, parsed[k].map((e, i) => ({ ...e, key: e.name ?? `${k}${i + 1}` }))]));
+      const innermost = (k, s) => keyed[k].reduce((best, e) =>
+        e.start <= s.start && s.end <= e.end && (!best || e.end - e.start <= best.end - best.start) ? e : best, null);
+      return parsed.spel.map((s) => Object.fromEntries(kinds.map((k) => [k, innermost(k, s)?.key ?? null])));
+    }
+  </script>
+  <script id="4309" type="text/markdown">
+    ---
+    ### Spanned Drafts
+  </script>
+  <script id="4219" type="module" pinned="">
+    // fonts must be loaded before anything is measured (see fontReady), including
+    // the subsets that this galley's own characters need
+    await fontReady
+    await Promise.all(["", "italic ", "bold ", "italic bold "].map((f) =>
+      document.fonts.load(`${f}16px "${fontFamily}"`, galley.textContent)))
+    const spanned = addSpansTo(galley)
+  </script>
+  <script id="5895" type="text/html">
+    <!-- the spanned galley, as the maker sees it: clmn:right really offset by config.clmnRight,
+         a rule between ofld's. The same spans, minus the rules, are measured for the spel data. -->
+    <div>${spanned.elem}</div>
+  </script>
+  <script id="5892" type="module" pinned="">
+    // Check: one box per ofld, each spel placed (by its html) at leftvw/topvw
+    // with its bounding box outlined; the table lists the recorded data.
+    const preview = document.createElement("div");
+    preview.innerHTML = Object.entries(layout.ofld).map(([name, ids]) => {
+      const list = ids.map((id) => spels.get(id));
+      const height = Math.max(...list.map((s) => s.topvw + s.heightvw)) + 2;
+      const inner = list.map((s) =>
+        `<div style="position:absolute;left:${s.leftvw}vw;top:${s.topvw}vw;width:${s.widthvw}vw;height:${s.heightvw}vw;outline:1px solid rgba(255,0,0,.4)"></div>`
+        + s.html.replace('class="spel"', 'class="spel visible"')).join("");
+      return `<div><b>ofld ${name}</b><div class="set" style="height:${height}vw;outline:1px dotted gray;margin-bottom:1vw">${inner}</div></div>`;
+    }).join("");
+    display(preview);
+    display(Inputs.table(Array.from(spels.values(), ({ id, string, para, clmn, ofld, leftvw, topvw, widthvw, heightvw }) => ({ id, string, para, clmn, ofld, leftvw, topvw, widthvw, heightvw }))));
+  </script>
+  <script id="2154" type="text/markdown">
+    #### *Default linear* `scores` *produced by the engine's* `timeToRead` *estimators*
+  </script>
+  <script id="5749" type="module" pinned="">
+    // The reading-time estimators come from the engine, from GitHub through jsDelivr (not
+    // raw.githubusercontent.com, which serves text/plain, so browsers refuse it as a module).
+    // @main follows the branch but is cached, so it can lag behind a push; use a tag to pin.
+    // They return milliseconds.
+    import { timeToRead, wordTime, whitespaceTime } from "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/timetoread.js"
+  </script>
+  <script id="5741" type="module" pinned="">
+    // one score (array of { id, pause }) per para, in text order. A spel's pause (ms) is the time
+    // to read it plus the time of the whitespace that follows it in the galley. The galley is
+    // white-space: pre, so its whitespace is respected. The last spel of a para is timed with
+    // timeToRead, which counts the end of the text it is given as a line ending (an end-of-para
+    // pause); the whitespace after it, up to the next spel (or the end of the text), is included.
+    const readOptions = { whitespace: "respect" }
+    const scores = Object.values(paras).map((ids) =>
+      ids.map((id, i) => {
+        const spel = spels.get(id);
+        const following = Array.from(spels.values())[spel.index + 1];
+        const gap = layout.text.slice(spel.end, following ? following.start : undefined);
+        const pause = i === ids.length - 1
+          ? timeToRead(spel.string + gap, 1, readOptions)
+          : wordTime(spel.string, 1, readOptions) + whitespaceTime(gap, 1, readOptions);
+        return { id, pause };
+      }))
+  </script>
+  <script id="5860" type="text/html">
+    <div class="set">SAMPLE, for <code>style</code> ing
+    Cobbett’s View
+                       broad vista north
+    Thomas’  Stone
+                       high   vista south</div>
+  </script>
+  <script id="16" type="text/html" pinned="" output="css">
+    <style>
+
+      /* 'Source Serif 4' is loaded from Google Fonts by the fontReady cell */
+      html {
+        margin: 2vw;
+      }
+
+      .set {
+        white-space: pre;
+        position: relative;
+        font-family: 'Source Serif 4', serif;
+        font-size: 3vw;
+        line-height: 1.8;
+      }
+
+      /* horizontal rule drawn by addSpansTo between ofld's (display only; not measured) */
+      .ofld-rule {
+        border: 0;
+        border-top: 1px solid gray;
+        height: 0;
+        margin-bottom: 0.4em;
+      }
+
+      .spel {
+        position: absolute;
+        opacity: 0;
+        transition: all 1.5s ease-in-out; /* vendorless fallback */
+        -o-transition: all 1.5s ease-in-out; /* opera */
+        -ms-transition: all 1.5s ease-in-out; /* IE 10 */
+        -moz-transition: all 1.5s ease-in-out; /* Firefox */
+        -webkit-transition: all 1.5s ease-in-out; /*safari and chrome */
+      }
+
+      .spel.visible {
+        opacity: 1;
+      }
+
+      #display {
+        position: relative;
+        background-color: floralwhite;
+        color: darkslategray;
+        cursor: none;
+        overflow: hidden;
+        width: 60vw; /* This value should be calculated manually for notebooks that display */
+        height: 50vw; /* This value should be calculated manually for notebooks that display */
+      }
+
+    </style>
+  </script>
+  <script id="2088" type="text/markdown">
+    #### General utilities
+  </script>
+  <script id="1051" type="module">
+    // converts pixel measurements to the more flexible vw (viewport width) measurement of css
+    const pxToVw = (px) => px * (100 / vWidth)
+  </script>
+  <script id="5514" type="module" pinned="">
+    // The width in px of 100vw, asked of the browser itself (a probe element 100vw wide), so it
+    // is exactly what css vw means here, scrollbar and zoom included. It is read once: everything
+    // in the galley is sized in vw, so the recorded vw data does not depend on the window width.
+    const vWidth = (() => {
+      const probe = document.createElement("div");
+      probe.style.cssText = "position:absolute;visibility:hidden;width:100vw;height:0";
+      document.body.append(probe);
+      const w = probe.getBoundingClientRect().width;
+      probe.remove();
+      return w;
+    })()
+  </script>
+  <script id="5894" type="module" pinned="">
+    // The font comes from Google Fonts (network), not from a local() copy, so that everyone's
+    // measurements, and the player's, use the same font file. Regular, italic, bold, bold italic.
+    // `fontReady` resolves once the stylesheet and the faces actually used are loaded;
+    // cells that measure text wait for it (see `spanned`).
+    const fontFamily = "Source Serif 4"
+    const fontReady = (async () => {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,700;1,400;1,700&display=swap";
+      const loaded = new Promise((resolve, reject) => {
+        link.onload = resolve;
+        link.onerror = () => reject(new Error(`Could not load the stylesheet for ${fontFamily}: ${link.href}`));
+      });
+      document.head.append(link);
+      invalidation.then(() => link.remove());
+      await loaded;
+      // px, the safest unit in the font shorthand; the sample text covers the latin subset
+      const sample = "AaBbCcDdEeFfGg’'“”—…";
+      await Promise.all(["", "italic ", "bold ", "italic bold "].map((f) =>
+        document.fonts.load(`${f}16px "${fontFamily}"`, sample)));
+      await document.fonts.ready;
+      if (!document.fonts.check(`16px "${fontFamily}"`, sample))
+        throw new Error(`${fontFamily} did not load`);
+      return fontFamily;
+    })()
+  </script>
+  <script id="1680" type="module">
+    // shuffles an array
+    const shuffle = (src) => {
+      let a = [...src];
+      let i = a.length;
+      while (--i > 0) {
+        let j = ~~(Math.random() * (i + 1)); // ~~ is a common optimization for Math.floor
+        let t = a[j];
+        a[j] = a[i];
+        a[i] = t;
+      }
+      return a;
+    }
+  </script>
+  <script id="3479" type="module" pinned="">
+    const randInt = (maxPlusOne) => (maxPlusOne * Math.random()) | 0
+  </script>
+  <script id="5876" type="text/markdown">
+    ---
+
+    ## Documentation Cells
+    that are not required for the actual work of configuration and scoring that you undertake on a specific piece, but you may retain these notes here for reference.
+  </script>
+  <script id="5877" type="text/markdown">
+    ### Configuration
+    The `config` object holds the few settings that markup cannot give (so far `clmnRight`, the vw added to every spel in a `clmn:right`). Everything else about the structure of a piece comes from the markup in the galley (see **Markup** below).
+
+    **Paratextual elements**
+
+    | Element   | Status           | Name |
+    |-----------|------------------|------|
+    | character | parsed           | char |
+    | word      | parsed or markup | spel (unless part of a marked-up spel) |
+    | line      | parsed           | line |
+    | paragraph | markup           | para |
+    | section   | markup           | sctn |
+    | chapter   | markup           | chpt |
+    | work      | parsed           | work |
+
+    **Display elements**: spel(s), column(s) `clmn`, open field(s) `ofld`; all marked up.
+
+    ‘Parsed’ means the element is represented in your raw text and derived from it automatically. (`char`, `line` and `work` are not implemented yet.)
+  </script>
+  <script id="5882" type="text/markdown">
+    ### Markup
+    Markers are HTML comments in the galley that start with `@`: `<!--@ para clmn:left -->` opens, `<!--@ /para /clmn -->` closes. They render nothing, so spel positions are unchanged.
+
+    - **Kinds:** `spel`, `para`, `clmn`, `ofld`, `sctn`, `chpt`; an optional name follows a colon (`clmn:right`, `chpt:one`).
+    - **Nesting:** each kind has its own stack, so `clmn` and `ofld` may overlap `para`s freely; same-kind entities nest. `/kind` closes the latest open one.
+    - **Coinciding boundaries:** several tokens may share a comment. Closes are applied before opens, so `<!--@ /para para -->` ends one para and starts the next.
+    - **Spels:** an explicit spel is the text between `<!--@ spel -->` and `<!--@ /spel -->`, whitespace kept, rich markup allowed. Outside explicit spels, each whitespace-separated run is an implicit spel.
+    - **Errors:** unknown kinds, unmatched closes and unclosed entities throw.
+    - **Names:** an unnamed entity is `kind1`, `kind2`, … in text order (`para1`, …).
+    - **Layout:** a spel belongs to its innermost para, clmn, ofld, sctn, chpt. In `clmn:right` it is offset by `config.clmnRight`; `clmn:left`, unnamed, or none adds 0. In each `ofld`, 0 is the top of its top-most spel box, and each `clmn` starts again at 0 (it is lifted to the top of its ofld). With no ofld the galley is the one ofld (called `galley`); spels outside the marked oflds also fall into it.
+
+    `parseMarkup(root)` returns `{text, spel, para, clmn, ofld, sctn, chpt}`: `text` is the galley's text without markers, each entity is `{kind, name, start, end, text}` with offsets into `text`. The cell below parses a small sample.
+  </script>
+  <script id="5880" type="module" pinned="">
+    const markupSample = display(html`<div class="set"><!--@ chpt:one sctn para clmn -->Cobbett’s View
+                            broad vista north
+    Thomas’  Stone
+                            high downs south<!--@ /para /clmn -->
+
+    <!--@ para clmn:two ofld:gap -->fifty years     <!--@ spel -->all that<!--@ /spel --> change
+    no   time       not this way<!--@ /para /clmn /ofld /sctn /chpt --></div>`);
+    const markupParsed = parseMarkup(markupSample);
+    display(Inputs.table(markupParsed.spel.map(({text, start, end, implicit}) => ({text, start, end, implicit: !!implicit}))));
+    display({para: markupParsed.para, clmn: markupParsed.clmn, ofld: markupParsed.ofld, sctn: markupParsed.sctn, chpt: markupParsed.chpt});
+  </script>
+  <script id="5893" type="text/markdown">
+    ### Status (2026-10-29)
+
+    **Pipeline**
+
+    | Cell | Role |
+    |------|------|
+    | `galley` (html cell) | the text with markup; the single source |
+    | `parseMarkup`, `containment` | read the markup; give each spel its para, clmn, ofld, sctn, chpt |
+    | `fontReady` | loads *Source Serif 4* from Google Fonts; measuring waits for it |
+    | `addSpansTo(galley)` | copy of the galley with every spel wrapped in a span, `clmn:right` really offset, each clmn lifted to the top of its ofld, a rule before each ofld; returns `{elem, parsed, cont}`; shown in the html cell below `spanned` |
+    | `getSpelArray(spanned)` | measures the bounding box of each span in that copy without the rules; returns the spel objects |
+    | `mapParaSpels(spanned)` → `layout` | groups spels: `{text, spels, para, clmn, ofld, sctn, chpt}`, each group `{name: [ids]}`; `spels`, `paras` derive from it |
+    | `scores` | one array of `{id, pause}` per para, pauses from the engine's `wordTime` and `whitespaceTime` |
+    | preview cell | each ofld redrawn from the data, bounding boxes outlined, plus a table; a check, can be deleted |
+
+    **Spel data:** `leftvw`, `topvw`, `widthvw`, `heightvw` give the rendered **bounding box** of the spel's span in vw relative to its container (left is measured on the offset display, top on the display with each clmn lifted to the top of its ofld, so a clmn starts again at 0 as an ofld does; with oflds themselves it is virtual, from the ofld's top-most box). `html` is an absolutely positioned span placed at `leftvw`, `topvw`. Ink (glyph overhangs) is deliberately not measured: the data goes to the player as boxes, and ink is dealt with only when a piece needs it. Also `id`, `index`, `string`, `start`, `end`, `implicit`, `para`, `clmn`, `ofld`, `sctn`, `chpt`.
+
+    **How the box is measured:** the span's client rects (one per line) give left, right, top and bottom; the line-height half-leading is allowed for, because the absolutely positioned copy is a block. Pixels become vw with `pxToVw` (`vWidth` is the pixel width of `100vw`, read from a probe element).
+
+    **Checked:** the ink-based version ran without cell errors in headless Chrome (1200px wide). The bounding-box version and the engine import have not yet been run in a browser. Not checked: other window widths, the values in `scores`, the Observable Desktop app.
+
+    **To do**
+    - Placeholder `config.clmnRight` = 30 (vw): set it.
+    - Self-host the font (`FileAttachment` + `@font-face`) for a published piece; the player must load the same font with the same axes for the data to match.
+    - `char`, `line` and `work` elements (see Configuration).
+    - Export the data for the player.
+    - After an ofld rule the display shows a blank line (the ofld's text starts with a newline); display only.
+
+    **Not covered in rich markup / box measuring**
+        - Inline elements with a different font size or line height: they can change the line box of the absolutely positioned copy, so the baseline may shift.
+    - Non-text content (`<br>`, images, inline-blocks): ignored by the line-height allowance; only text is measured.
+    - A clmn that starts in the middle of a line (the lifted clmn is anchored at the galley's left edge, so its first line would move left): start a clmn at the start of a line.
+    - A multi-line explicit spel: measured line by line, but in the player its later lines start at the spel's left edge, not the galley's.
+    - Overlapping or nested explicit spels: not supported; an explicit spel and the markup around it must nest properly.
+    - Ancestor elements are copied around each spel by tag and attributes only; styles that depend on the ancestor's layout (block display, positioning, floats) do not carry over.
+
+    Co-implemented with Claude Sonnet 5.5.
+  </script>
+</notebook>

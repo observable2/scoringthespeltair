@@ -1,0 +1,140 @@
+<!doctype html>
+<notebook theme="midnight">
+  <title>Reunion</title>
+  <script id="2" type="text/markdown" hidden="">
+    # Reunion
+  </script>
+  <script id="1" type="text/html">
+    <!-- <img class= "rs" src="data/riverSnow/riverSnow.jpg"> -->
+    <div id="field"></div>
+    <div id="byline">
+    <span id="bytext"><cite>Reading</cite> by John Cayley</span>
+    </div>
+  </script>
+  <script id="4" type="text/html">
+    <style>
+      /* this page's look: colours override the midnight theme's, set on body (not :root) because
+         the theme stylesheet is injected after the template's and would win a same-specificity
+         :root override. Everything below uses them. */
+      body {
+        --theme-background: black;
+        --theme-foreground: floralwhite;
+        cursor: none;
+      }
+
+      #field {
+        position: absolute;
+        top: 7vw;
+        /* centred on the extent of its spels; see centerField in scoringthespeltair */
+        left: calc((100% - var(--extent-w, 0vw)) / 2 - var(--extent-x, 0vw));
+        font-family: var(--serif);
+        font-size: 2.5vw;
+        font-variant-ligatures: no-common-ligatures;
+        font-variation-settings: "wght" 300;
+        line-height: 1.8;
+        user-select: none;
+        -webkit-user-select: none; /* Safari */
+        transition: opacity 2.5s ease-in-out;
+      }
+
+      #byline {
+        color: var(--theme-foreground);
+        font-size: 1.6vw;
+        line-height: 1.1;
+        padding: 0 10vw 2vw;
+        text-align: center;
+        z-index: 10;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity .7s ease-in-out;
+      }
+
+      #byline:hover {
+        opacity: 1;
+      }
+
+      #byline a {
+        color: var(--theme-foreground);
+        text-decoration: none;
+      }
+
+      #byline a:hover {
+        color: lightgray;
+      }
+
+      .char {
+        opacity: 0;
+        transition: all 1.3s ease-in-out;
+      }
+
+      .char.visible {
+        opacity: 1;
+      }
+
+      .spel {
+        position: absolute;
+        opacity: 0;
+        transition: all 1.5s ease-in-out;
+      }
+
+      .spel.visible {
+        opacity: 1;
+      }
+    </style>
+  </script>
+  <script id="3" type="module">
+    console.log("--- Reading, Sept 2026 ---");
+
+    // Wait for the DOM to be ready before querying elements
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    const byline = document.getElementById("byline");
+    if (byline) {
+      if (window != window.top) {
+        console.log("This page is in an iframe");
+        byline.style.opacity = 0; // change to 1 if you want byline to show in iFrame
+      } else {
+        console.log("This window is top");
+        byline.style.opacity = 0;
+      }
+    } else {
+      console.log("WARNING: #byline element not found");
+    }
+
+    const { config } = await import("./data/config.js");
+    // --- DEBUG congiguration
+    // config.startingPoint = 2; // DEBUG when RECORDING & REDUCTING EDIT here
+    // config.numParas = 2; // DEBUG and here: number of scores built depends on this
+    // config.running = false; // DEBUG
+    var fieldElem = document.getElementById("field");
+    var paraNum, paras, scores, spels;
+    // --- preprocessing ---
+    console.log("--- preprocessing begins ---"); // DEBUG
+    spels = new Map(await FileAttachment("./data/spels.json").json());
+    fieldElem.innerHTML = Array.from(spels.values())
+      .map((spel) => spel.html)
+      .join("");
+    paras = await FileAttachment("./data/paras.json").json();
+    scores = await FileAttachment("./data/scores.json").json();
+    if (config.charFades) {
+      const spels = document.querySelectorAll('.spel');
+      for (const spel of spels) {
+        let str = spel.textContent;
+        let strlen = str.length;
+        str = [...str].map(char => `<span class="char">${char}</span>`).join('');
+        spel.innerHTML = str;
+        // DEBUG console.log(str);
+        spel.style.opacity = 1;
+      }
+    }
+    // console.log(paras[config.startingPoint]); // DEBUG , paras, scores
+    console.log("--- preprocessing done ---"); // DEBUG
+    // the engine comes from GitHub through jsDelivr (see the note in scoring-template.html)
+    const { centerField } = await import("https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/center.js");
+    centerField(fieldElem);
+    // --- animation, based on the play() method in observablehq.com/@shadoof/sounding ---
+    const { play } = await import("https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/play.js");
+    // console.log("scores:", scores); // DEBUG
+    if (config.running) play(config, fieldElem, spels, paras, scores);
+  </script>
+</notebook>
