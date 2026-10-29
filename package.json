@@ -45,6 +45,11 @@
   },
   "sideEffects": false,
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "preview": "notebooks preview --root nbks --template nbks/custom.tmpl",
+    "build": "notebooks build --root nbks --template nbks/custom.tmpl --out ../dist -- nbks/*.html"
+  },
+  "dependencies": {
+    "@observablehq/notebook-kit": "^2.9.1"
   }
 }

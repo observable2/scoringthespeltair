@@ -3,4 +3,13 @@ node_modules/
 
 # local-only working data (derived from other projects; not for the repo)
 local-data/
-package-lock.json
+
+# adding in notebook-kit
+*.log
+*.bak
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+CLAUDE.md
+.vscode/
+dist/
