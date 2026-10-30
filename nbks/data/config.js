@@ -4,6 +4,7 @@ import { defaultConfig } from "https://cdn.jsdelivr.net/gh/observable2/scoringth
 const config = {
   ...defaultConfig,
   startingPoint: 0,
-  numParas: 3
+  numParas: 3,
+  fontWeight: 300 // overrides the engine's default (400); the same value as in scoring-template.html
 };
 export { config };

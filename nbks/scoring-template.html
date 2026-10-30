@@ -9,10 +9,15 @@
     *Scoring the Spelt Air* is a gathering of tools and conventions that will allow you to draft and animate pieces of writing for display on screens and the web. It uses the Observable Notebook platform for drafting and configuration. This notebook itself can be copied (more properly, *forked*) so as to allow you to draft and configure your own pieces of writing. Doing so then allows you to produce and download playable specifications for your writing. A separate suite of JavaScript programs will then *play* the animations you have composed and designed.
   </script>
   <script id="3254" type="module" pinned="">
+    // The engine's defaultConfig has a default for every setting (jsDelivr, as for the estimators
+    // below); a scoring project overrides only what it needs, here and, for what the player also
+    // uses, in its own nbks/data/config.js. See notes (in Markdown cells) on Configuration below.
+    import { defaultConfig } from "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/config.js"
     const config = {
-      // see notes (in Markdown cells) on Configuration below
+      ...defaultConfig,
       // Paragraphs, columns, fields etc. are no longer configured here: they come from the
       // <!--@ ... --> markup in the galley (see `containment` and `layout` below).
+      fontWeight: 300, // overrides the engine's default (400); the player must be given the same value
       clmnRight: 48 // vw added to the left of every spel in a clmn named "right" (left clmn of the sample is 42.4vw wide)
       // a clmn named "left" (or unnamed, or no clmn at all) adds 0
     }
@@ -394,7 +399,7 @@
     // fonts must be loaded before anything is measured (see fontReady), including
     // the subsets that this galley's own characters need
     await fontReady
-    await Promise.all(["", "italic ", "bold ", "italic bold "].map((f) =>
+    await Promise.all(faces.map((f) =>
       document.fonts.load(`${f}16px "${fontFamily}"`, galley.textContent)))
     const spanned = addSpansTo(galley)
   </script>
@@ -462,6 +467,7 @@
         position: relative;
         font-family: 'Source Serif 4', serif;
         font-size: 3vw;
+        font-weight: ${config.fontWeight}; /* from config: the engine holds the default, the project overrides */
         line-height: 1.8;
       }
 
@@ -521,14 +527,17 @@
   </script>
   <script id="5894" type="module" pinned="">
     // The font comes from Google Fonts (network), not from a local() copy, so that everyone's
-    // measurements, and the player's, use the same font file. Regular, italic, bold, bold italic.
+    // measurements, and the player's, use the same font file. Roman and italic, at config.fontWeight and bold.
     // `fontReady` resolves once the stylesheet and the faces actually used are loaded;
     // cells that measure text wait for it (see `spanned`).
     const fontFamily = "Source Serif 4"
+    // the faces in use, as the start of a font shorthand: roman and italic, at config.fontWeight and bold
+    const faces = ["", "italic "].flatMap((s) => [config.fontWeight, 700].map((w) => `${s}${w} `))
     const fontReady = (async () => {
       const link = document.createElement("link");
       link.rel = "stylesheet";
-      link.href = "https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,700;1,400;1,700&display=swap";
+      // a weight range, not a list: Source Serif 4 is a variable font, so any config.fontWeight works
+      link.href = "https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,200..900;1,200..900&display=swap";
       const loaded = new Promise((resolve, reject) => {
         link.onload = resolve;
         link.onerror = () => reject(new Error(`Could not load the stylesheet for ${fontFamily}: ${link.href}`));
@@ -538,10 +547,9 @@
       await loaded;
       // px, the safest unit in the font shorthand; the sample text covers the latin subset
       const sample = "AaBbCcDdEeFfGg’'“”—…";
-      await Promise.all(["", "italic ", "bold ", "italic bold "].map((f) =>
-        document.fonts.load(`${f}16px "${fontFamily}"`, sample)));
+      await Promise.all(faces.map((f) => document.fonts.load(`${f}16px "${fontFamily}"`, sample)));
       await document.fonts.ready;
-      if (!document.fonts.check(`16px "${fontFamily}"`, sample))
+      if (!document.fonts.check(`${config.fontWeight} 16px "${fontFamily}"`, sample))
         throw new Error(`${fontFamily} did not load`);
       return fontFamily;
     })()
@@ -571,7 +579,9 @@
   </script>
   <script id="5877" type="text/markdown">
     ### Configuration
-    The `config` object holds the few settings that markup cannot give (so far `clmnRight`, the vw added to every spel in a `clmn:right`). Everything else about the structure of a piece comes from the markup in the galley (see **Markup** below).
+    The `config` object holds the few settings that markup cannot give. It is `{ ...defaultConfig, ...overrides }`: **the engine's `config.js` has a default for every setting, and this project overrides only what it needs**. So far: `fontWeight` (the weight of the type the spels are measured and shown in; the engine's default is 400, this project says 300; the player must be given the same value, in its `nbks/data/config.js`) and `clmnRight` (the vw added to every spel in a `clmn:right`). Everything else about the structure of a piece comes from the markup in the galley (see **Markup** below).
+
+    **The pattern for every configurable detail:** put its default in the engine's `config.js`; override it here and, if the player needs it, in `nbks/data/config.js`; let each page apply it (the `.set` style here reads `config.fontWeight`; the player sets `#field`'s `font-weight` from it). The engine itself does not apply design settings such as `fontWeight`; it only carries the default. See the README, "Configuration".
 
     **Paratextual elements**
 
@@ -638,7 +648,7 @@
     **Checked:** the ink-based version ran without cell errors in headless Chrome (1200px wide). The bounding-box version and the engine import have not yet been run in a browser. Not checked: other window widths, the values in `scores`, the Observable Desktop app.
 
     **To do**
-    - Placeholder `config.clmnRight` = 30 (vw): set it.
+    - Tidy up and finalize the configuration details, following the pattern in Configuration: still set directly in CSS or code are the font family and size, the line height, the optical-size axis (the player fixes `opsz` at 14 to match the notebook), `clmnRight` (here only), and the page margin. Decide which belong in `defaultConfig`, which are per project, and how the exported `nbks/data/config.js` is produced from this notebook's `config` so that the two cannot disagree.
     - Self-host the font (`FileAttachment` + `@font-face`) for a published piece; the player must load the same font with the same axes for the data to match.
     - `char`, `line` and `work` elements (see Configuration).
     - Export the data for the player.

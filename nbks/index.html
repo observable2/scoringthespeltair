@@ -29,9 +29,13 @@
         /* centred on the extent of its spels; see centerField in scoringthespeltair */
         left: calc((100% - var(--extent-w, 0vw)) / 2 - var(--extent-x, 0vw));
         font-family: var(--serif);
-        font-size: 2.5vw;
+        font-size: 3vw; /* the size the spel data was measured at (.set in scoring-template.html): vw positions and line pitch depend on it */
         font-variant-ligatures: no-common-ligatures;
-        font-variation-settings: "wght" 300;
+        /* font-weight comes from config.fontWeight (set in the module cell below). The optical-size
+           axis is fixed, not left to follow the font size: the spel data was measured without it, and
+           with it the type is narrower and varies with the window width. (Measured: 21.35vw against
+           the data's 21.363vw for "Thomas’  Stone", at 1200px and 800px.) */
+        font-variation-settings: "opsz" 14;
         line-height: 1.8;
         user-select: none;
         -webkit-user-select: none; /* Safari */
@@ -108,6 +112,7 @@
     // config.numParas = 2; // DEBUG
     // config.running = false; // DEBUG
     var fieldElem = document.getElementById("field");
+    fieldElem.style.fontWeight = config.fontWeight; // the weight the data was measured at (set here, not by the engine)
     var paraNum, paras, scores, spels;
     // --- preprocessing ---
     console.log("--- preprocessing begins ---"); // DEBUG
