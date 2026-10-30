@@ -19,7 +19,7 @@ or import individual files:
 - `scoringthespeltair/timing.js` → `sleep`, `msToTime`
 - `scoringthespeltair/math.js` → `mod`, `shuffle`
 - `scoringthespeltair/dev.js` → `createDevLog`
-- `scoringthespeltair/config.js` → `defaultConfig` (generic timing/behavior defaults)
+- `scoringthespeltair/config.js` → `defaultConfig` (generic timing/behavior defaults, and defaults for settings that only the pages apply, such as `fontWeight`; see [Configuration](#configuration))
 
 ## Usage
 
@@ -41,6 +41,28 @@ export { config };
 const { play } = await import("scoringthespeltair/play.js");
 play(config, fieldElem, spels, paras, scores);
 ```
+
+## Configuration
+
+The engine's `config.js` holds a **default for every setting**; a scoring project (a notebook, and
+the player page that plays what it exports) **overrides only what it needs** by spreading
+`defaultConfig`. This is the pattern for every configurable detail:
+
+1. Add the setting, with its default, to `defaultConfig` in the engine's `config.js`, commenting who
+   uses it. Some settings are used by the engine (`slower`, `fadeWords`, the `...Ms` times); others
+   only by the pages that show the piece (`fontWeight`): the engine does not apply those, it just
+   carries the default so that every page reads the same one.
+2. A project overrides it in its own config: the notebook's `config` cell
+   (`{ ...defaultConfig, fontWeight: 300 }`) and, for what the player also needs, `nbks/data/config.js`.
+   Leave a key out to take the engine's default.
+3. The pages apply it: the notebook's `.set` style reads `config.fontWeight`, and the player sets
+   `#field`'s `font-weight` from it. A value that affects the measured positions (the weight does:
+   spel data is measured at one weight) must be the same in the notebook and the player, which is why
+   it is in the config and not in each page's CSS.
+
+`fontWeight` (default 400) is the first setting done this way. Still set directly in the pages' CSS, and
+to be brought into the config in the same way when the configuration is tidied and finalized: the font
+family and size, line height, the optical-size axis, `clmnRight`, the page margin.
 
 ## Centring on the extent
 
