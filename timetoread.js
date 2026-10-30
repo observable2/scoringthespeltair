@@ -6,6 +6,7 @@
 //   timeToRead(text, factor, options)   any amount of text, from one token up
 //   wordTime(token, factor, options)    one whitespace-delimited token
 //   whitespaceTime(gap, factor, options) the whitespace between two tokens
+//   spelTime(spel, gap, factor, options) one spel (one or several words) and the whitespace after it
 //
 // Text may contain HTML and/or Markdown (see markup.js); markup is not read, and block
 // structure (paragraphs, <br>, headings, list items, ...) becomes line breaks.
@@ -17,7 +18,14 @@
 // Only the punctuation listed here is accounted for; the set is to be developed later.
 // The end of the text supplied is treated as a line ending, whether or not it is a real end:
 // one line break, or two if the text contains some other line break (endBreaks, endBreaksMultiline).
-import { flatten } from "./markup.js";
+//
+// timeToRead is for text that stands alone. A spel is not alone: it sits in a text, followed by
+// whitespace that belongs to its context. spelTime gives the time of the spel itself (the
+// whitespace inside a multi-word spel counts, as in timeToRead) plus the whitespace that follows
+// it, and no end-of-text break unless asked ({ end: true }, for the last spel of a paragraph, say).
+// Spel markup (<!--@ spel --> ... <!--@ /spel -->) is HTML comments, so, like any other markup,
+// it is not read: the same functions work on text that has none.
+import { flatten, RSP, RTAB, RNL } from "./markup.js";
 
 const defaults = Object.freeze({
   base: 0,
@@ -78,6 +86,18 @@ function gapMs(gap, o, factor, { leading = false, endBreaks = 0 } = {}) {
   return Math.round((o.perNewline * breaks + o.perSpace * extraSpaces + o.perTab * tabs) / factor);
 }
 
+// A gap is whitespace, maybe with markup. flatten() would drop a gap that is only whitespace
+// (its Markdown stage treats whitespace-only lines as blank), so such a gap is converted directly,
+// by the same rules; a gap with markup in it (apart from comments) goes through flatten().
+const PLAIN_GAP = /^[ \t\n\r\f\v\u00a0]*$/;
+function flattenGap(gap, o) {
+  const bare = String(gap ?? "").replace(/<!--[\s\S]*?-->/g, "");
+  if (!PLAIN_GAP.test(bare)) return flatten(gap, o);
+  const s = bare.replace(/\r\n?/g, "\n").replace(/\u00a0/g, RSP);
+  if (o.whitespace === "respect") return s.replace(/ /g, RSP).replace(/\t/g, RTAB).replace(/\n/g, RNL).replace(/[\f\v]/g, RSP);
+  return s.replace(/[ \t\n\f\v]+/g, " ");
+}
+
 // reading time of one token (markup allowed), not including the whitespace after it
 function wordTime(token, factor = 1, options = {}) {
   const o = settings(options);
@@ -87,7 +107,31 @@ function wordTime(token, factor = 1, options = {}) {
 // time for the whitespace (and any markup) between two tokens
 function whitespaceTime(gap, factor = 1, options = {}) {
   const o = settings(options);
-  return gapMs(flatten(gap, o), o, factor);
+  return gapMs(flattenGap(gap, o), o, factor);
+}
+
+// Time for one spel and the whitespace after it, for a spel of one or several words.
+//   spel   its text, markup allowed; line breaks and spaces inside it count as in timeToRead
+//   gap    what follows it up to the next spel: whitespace, maybe with markup ("" if nothing does)
+//   options.end  true if the spel ends a unit (a paragraph, the text): the end then counts as a
+//          line ending, as in timeToRead, with the whitespace after the spel counting towards it
+// Whitespace at the start of the spel is not counted (it belongs to the gap before); whitespace at
+// its end is added to `gap`. Everything is divided by `factor`, each part rounded, as elsewhere.
+function spelTime(spel, gap = "", factor = 1, { end = false, ...options } = {}) {
+  const o = settings(options);
+  const [, core, trail] = flatten(spel, o).match(/^[ \ue000-\ue003]*([\s\S]*?)([ \ue000-\ue003]*)$/);
+  let ms = 0;
+  let interior = false;
+  core.split(GAPS).forEach((part, i) => {
+    if (i % 2 === 0) {
+      if (part) ms += wordMs(part, o, factor);
+    } else {
+      ms += gapMs(part, o, factor);
+      if (breaksIn(part, false) > 0) interior = true;
+    }
+  });
+  const endBreaks = end ? (interior ? o.endBreaksMultiline : o.endBreaks) : 0;
+  return ms + gapMs(trail + flattenGap(gap, o), o, factor, { endBreaks });
 }
 
 // reading time of a text of any length, from one token up
@@ -120,4 +164,4 @@ function timeToRead(text, factor = 1, options = {}) {
   return ms;
 }
 
-export { timeToRead, wordTime, whitespaceTime, defaults as timeToReadDefaults };
+export { timeToRead, wordTime, whitespaceTime, spelTime, defaults as timeToReadDefaults };

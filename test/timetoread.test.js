@@ -4,7 +4,7 @@
 // written out in full so that changing a constant makes the arithmetic here fail loudly.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { timeToRead, wordTime, whitespaceTime, timeToReadDefaults } from "../timetoread.js";
+import { timeToRead, wordTime, whitespaceTime, spelTime, timeToReadDefaults } from "../timetoread.js";
 
 const L = 112; // ms per letter
 const BREAK = 1000;
@@ -141,4 +141,52 @@ test("the end of the text is worth two line breaks if the text has another line 
   assert.equal(timeToRead("a\nb", 1, { ...plain, endBreaksMultiline: 3 }), 2 * L + BREAK + 3 * BREAK);
   assert.equal(timeToRead("a b", 1, { endBreaks: 0 }), 2 * L);
   assert.equal(timeToRead("a b", 2), wordTime("a", 2) + wordTime("b", 2) + BREAK / 2);
+});
+
+test("whitespaceTime counts a gap that is only whitespace", () => {
+  assert.equal(whitespaceTime("     ", 1, RESPECT), 4 * 75); // the ordinary space is free
+  assert.equal(whitespaceTime(" ", 1, RESPECT), 0);
+  assert.equal(whitespaceTime("\n", 1, RESPECT), BREAK);
+  assert.equal(whitespaceTime("\n    ", 1, RESPECT), BREAK + 4 * 75); // indentation counts, as in timeToRead
+  assert.equal(whitespaceTime("\n\n", 1, RESPECT), 2 * BREAK);
+  assert.equal(whitespaceTime("\t", 1, RESPECT), 300);
+  assert.equal(whitespaceTime("     "), 0); // collapsed
+  assert.equal(whitespaceTime("a<!--@ /para -->"), 0);
+  assert.equal(whitespaceTime("\n<!--@ /para -->\n", 1, RESPECT), 2 * BREAK); // comments are not read
+});
+
+test("spelTime: one word is wordTime plus the gap after it, and no end of text", () => {
+  assert.equal(spelTime("north"), wordTime("north"));
+  assert.equal(spelTime("north", "\n", 1, RESPECT), wordTime("north") + BREAK);
+  assert.equal(spelTime("north", "\n    ", 1, RESPECT), wordTime("north") + BREAK + 4 * 75);
+  assert.equal(spelTime("years", "     ", 1, RESPECT), 5 * L + 4 * 75);
+  assert.equal(spelTime("years", "     "), 5 * L); // collapsed
+});
+
+test("spelTime: whitespace inside a multi-word spel counts, as in timeToRead", () => {
+  assert.equal(spelTime("all that"), 7 * L);
+  assert.equal(spelTime("all that", "", 1, RESPECT), 7 * L); // one ordinary space is free
+  assert.equal(spelTime("Thomas\u2019  Stone", "", 1, RESPECT), 11 * L + 75);
+  assert.equal(spelTime("change\nno   time", "", 1, RESPECT), 12 * L + BREAK + 2 * 75);
+  assert.equal(spelTime("change\nno   time", "       ", 1, RESPECT), 12 * L + BREAK + 2 * 75 + 6 * 75);
+  assert.equal(spelTime("change\nno", "", 1), 8 * L); // collapsed: the newline is a space
+  assert.equal(spelTime("all that ", "\n", 1, RESPECT), 7 * L + BREAK + 75); // its own trailing space joins the gap
+  assert.equal(spelTime("  all that", "", 1, RESPECT), 7 * L); // leading whitespace belongs to the gap before
+});
+
+test("spelTime: { end: true } adds the end-of-text break like timeToRead", () => {
+  const end = { ...RESPECT, end: true };
+  assert.equal(spelTime("way", "", 1, end), 3 * L + BREAK);
+  assert.equal(spelTime("way", "\n", 1, end), 3 * L + BREAK); // a real line break at the end is the ending
+  assert.equal(spelTime("way", "\n\n", 1, end), 3 * L + 2 * BREAK);
+  assert.equal(spelTime("a\nb", "", 1, end), timeToRead("a\nb", 1, RESPECT)); // two, as the text has another break
+  assert.equal(spelTime("a b", "", 1, { end: true }), timeToRead("a b"));
+  assert.equal(spelTime("way", "", 2, end), 3 * Math.round(L / 2) + Math.round(BREAK / 2));
+});
+
+test("spelTime: markup, spel markup included, is not read", () => {
+  const plain = spelTime("all that", " \n", 1, RESPECT);
+  assert.equal(spelTime("<!--@ spel -->all <em>that</em><!--@ /spel -->", " <!--@ /para -->\n", 1, RESPECT), plain);
+  assert.equal(spelTime("all that", "<br>", 1), 7 * L + BREAK); // structural markup in the gap is a break
+  assert.equal(spelTime(""), 0);
 });

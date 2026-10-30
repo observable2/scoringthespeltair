@@ -14,7 +14,7 @@ or import individual files:
 - `scoringthespeltair/center.js` → `centerField` (browser only; see [Centring on the extent](#centring-on-the-extent))
 - `scoringthespeltair/score.js` → `sumPauses`
 - `scoringthespeltair/text.js` → `normalizeToken` (markdown-aware token cleanup; default `normalize` for the RiTa estimator)
-- `scoringthespeltair/timetoread.js` → `timeToRead`, `wordTime`, `whitespaceTime`, `timeToReadDefaults` (no dependencies; markup handling is in the internal `markup.js`)
+- `scoringthespeltair/timetoread.js` → `timeToRead`, `wordTime`, `whitespaceTime`, `spelTime`, `timeToReadDefaults` (no dependencies; markup handling is in the internal `markup.js`)
 - `scoringthespeltair/timetoread-rita.js` → `timeToReadRita`, `createTimeToReadRita`, `timeToReadRitaDefaults` (needs `rita`; not in the root export)
 - `scoringthespeltair/timing.js` → `sleep`, `msToTime`
 - `scoringthespeltair/math.js` → `mod`, `shuffle`
@@ -130,7 +130,7 @@ Two models, in separate files (a model is not just a different syllable counter)
 
 | | `timetoread.js` (default, no deps) | `timetoread-rita.js` (optional) |
 |---|---|---|
-| Functions | `timeToRead(text, factor, options)`, `wordTime(token, factor, options)`, `whitespaceTime(gap, factor, options)` | `timeToReadRita(token, whitespace, factor, overrides)`, `createTimeToReadRita(overrides)` |
+| Functions | `timeToRead(text, factor, options)`, `wordTime(token, factor, options)`, `whitespaceTime(gap, factor, options)`, `spelTime(spel, gap, factor, options)` | `timeToReadRita(token, whitespace, factor, overrides)`, `createTimeToReadRita(overrides)` |
 | Input | any amount of text, from one token up; may contain HTML and/or Markdown | one token (does not handle markup; its default `normalize` is `normalizeToken`) |
 | Model | `perLetter` x letters (Unicode `\p{L}`) + clause/sentence punctuation pauses + line breaks, spaces and tabs in gaps | length + RiTa syllables + vowels + punctuation + whitespace |
 | Defaults | `timeToReadDefaults` (frozen): `perLetter` 112, `clausePause` 150, `sentencePause` 150, `perSpace` 75, `perTab` 300, `perNewline` 1000, `endBreaks` 1, `endBreaksMultiline` 2, `base` 0, `html` true, `markdown` true, `whitespace` "collapse" | `timeToReadRitaDefaults` (frozen) |
@@ -170,6 +170,28 @@ All times are ms. `factor` and `options` are optional (`factor` defaults to 1).
 end-of-text break, so per-token estimates can be compared with recorded timings. `whitespaceTime(gap)`
 takes the whitespace (and any markup) between two tokens and, like `timeToRead`, never treats a lone
 space as a paragraph break.
+
+#### `spelTime(spel, gap, factor, options)`: a spel in its context
+
+`timeToRead` is for text that stands alone, so it counts the end of the text as a line ending. A spel
+(one word or several) does not stand alone: it sits in a text, followed by whitespace that belongs to
+its context. `spelTime` is the time of the spel itself plus the whitespace after it:
+
+- the whitespace **inside** a multi-word spel counts as in `timeToRead` (line breaks, extra spaces
+  and tabs under `whitespace: "respect"`), which `wordTime` on the whole spel would ignore;
+- `gap` is what follows the spel up to the next spel: whitespace, perhaps with markup (`""` if nothing).
+  Whitespace at the end of the spel itself is added to it; whitespace at the start of the spel is
+  not counted (it belongs to the gap before);
+- there is **no end-of-text break** unless `options.end` is true, for the last spel of a paragraph or
+  of the text: the end then counts as a line ending, as in `timeToRead`, and the whitespace after the
+  spel counts towards it.
+
+Spel markup (`<!--@ spel --> ... <!--@ /spel -->`) is HTML comments, so it is not read, like any other
+markup, and nothing here needs it: the functions work as well on text that has none.
+
+`whitespaceTime` and `spelTime` count a gap that is only whitespace (`"     "`, `"\n    "`) by the same
+rules as `timeToRead`. As there, indentation counts: in respect mode each space after a line break costs
+`perSpace`.
 
 Not yet calibrated: both punctuation figures, `perSpace`, `perTab`, `endBreaksMultiline`, and the use of
 `perNewline` for prose paragraph breaks (it was measured on poem line breaks); digits are not read at all.
