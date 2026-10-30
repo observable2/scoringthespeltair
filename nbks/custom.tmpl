@@ -15,13 +15,21 @@
       @import url("@fontsource-variable/source-serif-4/opsz.css");
       @import url("@fontsource-variable/source-serif-4/opsz-italic.css");
 
-      /* neutralise the kit's page chrome (body margin/padding, <main> max-width) */
+      /* neutralise the kit's page chrome, then give every page one small, equal margin left and
+         right (so the page's centre doesn't move). A page can change it in its own <style>,
+         e.g.  body { --page-margin: 6vw } */
+      :root {
+        --page-margin: 2vw;
+      }
       html, body {
         margin: 0;
-        padding: 0;
+      }
+      body {
+        box-sizing: border-box;
+        padding: 0 var(--page-margin);
       }
       main {
-        margin: 0;
+        margin-inline: auto;
         max-width: none;
       }
     </style>

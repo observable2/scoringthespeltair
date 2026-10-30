@@ -51,13 +51,13 @@
     });
   </script>
   <script id="5891" type="text/html" pinned="">
-    <div id="galley" class="set"><!--@ para clmn:left ofld -->Cobbett’s View
+    <div id="galley" class="set"><!--@ spel para clmn:left ofld -->Cobbett’s View<!--@ /spel -->
                             broad vista north
-    Thomas’  Stone
+    <!--@ spel -->Thomas’  Stone<!--@ /spel -->
                             high downs south
 
-    fifty years     all that change
-    no   time       not this way
+    fifty years     all that <!--@ spel -->change
+    no   time<!--@ /spel -->       not this way
     <!--@ /para /clmn para clmn:right -->
     head winds
                             kept     you home
@@ -101,8 +101,10 @@
     //          a spel's top is its distance from the top of its own clmn
     //   left : the box's distance from the galley's left edge, plus the offset of the spel's clmn
     //          (config.clmnRight for a clmn named "right", otherwise 0)
-    // html is an absolutely positioned span that renders the spel at exactly leftvw/topvw.
-    // Spels keep their inner markup.
+    // html is an absolutely positioned span that renders the spel at exactly leftvw/topvw. It carries
+    // white-space:pre (so the spel's own spaces and line breaks are kept wherever it is played) and,
+    // for a spel of several lines, text-indent (indentvw: how far its first line starts to the right
+    // of the box's left edge, so the lines fall where they do in the galley). Spels keep their inner markup.
     const r3 = (x) => Math.round(x * 1000) / 1000;
     // Slug of a spel's text, for its id: lowercase, accents folded (é -> e), apostrophes and quotes
     // dropped (Cobbett’s -> cobbetts), any other run of characters that are not letters or digits
@@ -129,7 +131,8 @@
       const right = Math.max(...rects.map((r) => r.right));
       const top = rects[0].top - halfLeading; // the inline box sits half the leading below the block's top
       const bottom = rects[rects.length - 1].bottom + halfLeading;
-      return { left: left - boxRect.left, top: top - boxRect.top, width: right - left, height: bottom - top };
+      // indent: where the first line starts, from the box's left edge (later lines start at the edge)
+      return { left: left - boxRect.left, top: top - boxRect.top, width: right - left, height: bottom - top, indent: rects[0].left - left };
     };
 
     // Boxes (px) of all the spel spans of a spanned element, in order. A copy is measured in a
@@ -180,13 +183,14 @@
         const id = /^\d/.test(base) ? `s-${base}` : base;
         const leftvw = r3(pxToVw(m.left)); // actual: addSpansTo already offset the clmn
         const topvw = r3(pxToVw(m.top - origin.get(s.ofld)));
+        const indentvw = r3(pxToVw(m.indent));
         const inner = inners[i];
         const attr = id.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
         return {
           id, index: i + size, string: s.text, start: s.start, end: s.end, implicit: !!s.implicit,
           para: s.para, clmn: s.clmn, ofld: s.ofld, sctn: s.sctn, chpt: s.chpt,
-          leftvw, topvw, widthvw: r3(pxToVw(m.width)), heightvw: r3(pxToVw(m.height)),
-          html: `<span id="${attr}" class="spel" style="left:${leftvw}vw;top:${topvw}vw">${inner}</span>`
+          leftvw, topvw, widthvw: r3(pxToVw(m.width)), heightvw: r3(pxToVw(m.height)), indentvw,
+          html: `<span id="${attr}" class="spel" style="left:${leftvw}vw;top:${topvw}vw;white-space:pre${indentvw ? `;text-indent:${indentvw}vw` : ""}">${inner}</span>`
         };
       });
     }
@@ -395,8 +399,7 @@
     const spanned = addSpansTo(galley)
   </script>
   <script id="5895" type="text/html">
-    <!-- the spanned galley, as the maker sees it: clmn:right really offset by config.clmnRight,
-         a rule between ofld's. The same spans, minus the rules, are measured for the spel data. -->
+    <!-- the spanned galley, as the maker sees it: clmn:right really offset by config.clmnRight, a rule between ofld's. The same spans, minus the rules, are measured for the spel data. -->
     <div>${spanned.elem}</div>
   </script>
   <script id="5892" type="module" pinned="">
@@ -422,24 +425,21 @@
     // raw.githubusercontent.com, which serves text/plain, so browsers refuse it as a module).
     // @main follows the branch but is cached, so it can lag behind a push; use a tag to pin.
     // They return milliseconds.
-    import { timeToRead, wordTime, whitespaceTime } from "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/timetoread.js"
+    import { spelTime } from "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/timetoread.js"
   </script>
   <script id="5741" type="module" pinned="">
-    // one score (array of { id, pause }) per para, in text order. A spel's pause (ms) is the time
-    // to read it plus the time of the whitespace that follows it in the galley. The galley is
-    // white-space: pre, so its whitespace is respected. The last spel of a para is timed with
-    // timeToRead, which counts the end of the text it is given as a line ending (an end-of-para
-    // pause); the whitespace after it, up to the next spel (or the end of the text), is included.
+    // one score (array of { id, pause }) per para, in text order. A spel's pause (ms) is spelTime:
+    // the time to read it (the whitespace inside a multi-word spel counts) plus the whitespace that
+    // follows it in the galley, up to the next spel or the end of the text. The galley is
+    // white-space: pre, so its whitespace is respected. The last spel of a para also carries the
+    // end-of-para pause ({ end: true }).
     const readOptions = { whitespace: "respect" }
     const scores = Object.values(paras).map((ids) =>
       ids.map((id, i) => {
         const spel = spels.get(id);
         const following = Array.from(spels.values())[spel.index + 1];
         const gap = layout.text.slice(spel.end, following ? following.start : undefined);
-        const pause = i === ids.length - 1
-          ? timeToRead(spel.string + gap, 1, readOptions)
-          : wordTime(spel.string, 1, readOptions) + whitespaceTime(gap, 1, readOptions);
-        return { id, pause };
+        return { id, pause: spelTime(spel.string, gap, 1, { ...readOptions, end: i === ids.length - 1 }) };
       }))
   </script>
   <script id="5860" type="text/html">
@@ -628,10 +628,10 @@
     | `addSpansTo(galley)` | copy of the galley with every spel wrapped in a span, `clmn:right` really offset, each clmn lifted to the top of its ofld, a rule before each ofld; returns `{elem, parsed, cont}`; shown in the html cell below `spanned` |
     | `getSpelArray(spanned)` | measures the bounding box of each span in that copy without the rules; returns the spel objects |
     | `mapParaSpels(spanned)` → `layout` | groups spels: `{text, spels, para, clmn, ofld, sctn, chpt}`, each group `{name: [ids]}`; `spels`, `paras` derive from it |
-    | `scores` | one array of `{id, pause}` per para, pauses from the engine's `wordTime` and `whitespaceTime` |
+    | `scores` | one array of `{id, pause}` per para, pauses from the engine's `spelTime` |
     | preview cell | each ofld redrawn from the data, bounding boxes outlined, plus a table; a check, can be deleted |
 
-    **Spel data:** `leftvw`, `topvw`, `widthvw`, `heightvw` give the rendered **bounding box** of the spel's span in vw relative to its container (left is measured on the offset display, top on the display with each clmn lifted to the top of its ofld, so a clmn starts again at 0 as an ofld does; with oflds themselves it is virtual, from the ofld's top-most box). `html` is an absolutely positioned span placed at `leftvw`, `topvw`. Ink (glyph overhangs) is deliberately not measured: the data goes to the player as boxes, and ink is dealt with only when a piece needs it. Also `id`, `index`, `string`, `start`, `end`, `implicit`, `para`, `clmn`, `ofld`, `sctn`, `chpt`.
+    **Spel data:** `leftvw`, `topvw`, `widthvw`, `heightvw` give the rendered **bounding box** of the spel's span in vw relative to its container (left is measured on the offset display, top on the display with each clmn lifted to the top of its ofld, so a clmn starts again at 0 as an ofld does; with oflds themselves it is virtual, from the ofld's top-most box). `html` is an absolutely positioned span placed at `leftvw`, `topvw`. Ink (glyph overhangs) is deliberately not measured: the data goes to the player as boxes, and ink is dealt with only when a piece needs it. `indentvw` is how far the first line of a multi-line spel starts to the right of the box's left edge (0 for one line); `html` uses it as `text-indent`, and has `white-space:pre`. Also `id`, `index`, `string`, `start`, `end`, `implicit`, `para`, `clmn`, `ofld`, `sctn`, `chpt`.
 
     **How the box is measured:** the span's client rects (one per line) give left, right, top and bottom; the line-height half-leading is allowed for, because the absolutely positioned copy is a block. Pixels become vw with `pxToVw` (`vWidth` is the pixel width of `100vw`, read from a probe element).
 
@@ -648,7 +648,7 @@
         - Inline elements with a different font size or line height: they can change the line box of the absolutely positioned copy, so the baseline may shift.
     - Non-text content (`<br>`, images, inline-blocks): ignored by the line-height allowance; only text is measured.
     - A clmn that starts in the middle of a line (the lifted clmn is anchored at the galley's left edge, so its first line would move left): start a clmn at the start of a line.
-    - A multi-line explicit spel: measured line by line, but in the player its later lines start at the spel's left edge, not the galley's.
+    - A multi-line explicit spel: its later lines must all start at the same x, the box's left edge (in the sample, the left edge of the galley); lines that start at different x's are not reproduced.
     - Overlapping or nested explicit spels: not supported; an explicit spel and the markup around it must nest properly.
     - Ancestor elements are copied around each spel by tag and attributes only; styles that depend on the ancestor's layout (block display, positioning, floats) do not carry over.
 

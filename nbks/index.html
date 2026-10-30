@@ -8,14 +8,15 @@
     <!-- <img class= "rs" src="data/riverSnow/riverSnow.jpg"> -->
     <div id="field"></div>
     <div id="byline">
-    <span id="bytext"><cite>Reading</cite> by John Cayley</span>
+      <!-- <span id="bytext"><cite>Reading</cite> by John Cayley</span> -->
     </div>
   </script>
   <script id="4" type="text/html">
     <style>
-      /* this page's look: colours override the midnight theme's, set on body (not :root) because
-         the theme stylesheet is injected after the template's and would win a same-specificity
-         :root override. Everything below uses them. */
+      /* this page's look: colours override the midnight theme's, set on
+      body (not :root) because the theme stylesheet is injected after 
+      the template's and would win a same-specificity
+      :root override. Everything below uses them. */
       body {
         --theme-background: black;
         --theme-foreground: floralwhite;
@@ -103,8 +104,8 @@
 
     const { config } = await import("./data/config.js");
     // --- DEBUG congiguration
-    // config.startingPoint = 2; // DEBUG when RECORDING & REDUCTING EDIT here
-    // config.numParas = 2; // DEBUG and here: number of scores built depends on this
+    // config.startingPoint = 2; // DEBUG
+    // config.numParas = 2; // DEBUG
     // config.running = false; // DEBUG
     var fieldElem = document.getElementById("field");
     var paraNum, paras, scores, spels;
@@ -129,10 +130,12 @@
     }
     // console.log(paras[config.startingPoint]); // DEBUG , paras, scores
     console.log("--- preprocessing done ---"); // DEBUG
-    // the engine comes from GitHub through jsDelivr (see the note in scoring-template.html)
+    // the engine comes from GitHub through jsDelivr
+    // (see the note in scoring-template.html)
     const { centerField } = await import("https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/center.js");
     centerField(fieldElem);
-    // --- animation, based on the play() method in observablehq.com/@shadoof/sounding ---
+    // --- animation, based on the play() method in
+    // observablehq.com/@shadoof/sounding ---
     const { play } = await import("https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/play.js");
     // console.log("scores:", scores); // DEBUG
     if (config.running) play(config, fieldElem, spels, paras, scores);
