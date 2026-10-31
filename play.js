@@ -37,6 +37,8 @@ async function play(config, fieldElem, spels, paras, scores) {
     if (paraNum == config.startingPoint) cycStart = Date.now();
     // looping forever ...
     loopMsg = `loop: ${loopCount++}`;
+    // with fadeWords 0 the field was faded out after the previous paragraph: bring it back
+    if (config.fadeWords === 0) fieldElem.style.opacity = 1;
     // TODO - ALLOW MULTIPLE SCORES PER PARA (scoreNum goes to 0 on paraNum change)
     devLog(scoreNum, paraNum);
     score = scores[scoreNum];
