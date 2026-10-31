@@ -4,7 +4,7 @@ export { defaultConfig } from "./config.js";
 export { sleep, msToTime } from "./timing.js";
 export { mod, shuffle } from "./math.js";
 export { createDevLog } from "./dev.js";
-export { toggleSpel } from "./display.js";
+export { toggleSpel, splitIntoChars } from "./display.js";
 export { centerField } from "./center.js";
 export { sumPauses } from "./score.js";
 export { timeToRead, wordTime, whitespaceTime, spelTime, timeToReadDefaults } from "./timetoread.js";

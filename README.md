@@ -10,7 +10,7 @@ Everything is re-exported from the package root (`import { play, defaultConfig, 
 or import individual files:
 
 - `scoringthespeltair/play.js` → `play(config, fieldElem, spels, paras, scores)`
-- `scoringthespeltair/display.js` → `toggleSpel`
+- `scoringthespeltair/display.js` → `toggleSpel`, `splitIntoChars` (wraps each character of every spel in a `.char` span, for `charFades`)
 - `scoringthespeltair/center.js` → `centerField` (browser only; see [Centring on the extent](#centring-on-the-extent))
 - `scoringthespeltair/score.js` → `sumPauses`
 - `scoringthespeltair/text.js` → `normalizeToken` (markdown-aware token cleanup; default `normalize` for the RiTa estimator)
@@ -63,6 +63,25 @@ the player page that plays what it exports) **overrides only what it needs** by 
 `fontWeight` (default 400) is the first setting done this way. Still set directly in the pages' CSS, and
 to be brought into the config in the same way when the configuration is tidied and finalized: the font
 family and size, line height, the optical-size axis, `clmnRight`, the page margin.
+
+## Per-score settings
+
+A piece that is one poem played through several different scores (a read-in, a pulse, an erasure ...)
+needs each score to behave differently. Two config keys, both optional:
+
+- `cycleScores: true`: one cycle plays **every** score in `scores.json`, in order (the default is one
+  score per paragraph, `paras[i]` with `scores[i]`). There is then a single "paragraph" to the cycle.
+- `scoreSettings`: an array indexed by score number; each entry may hold any of
+  - `slower`: replaces `config.slower` for this score: its pauses, its scored fade-outs and (with `charFades`)
+    the per-character delay. `0` plays the score at once.
+  - `interScoreMs`: replaces `config.interScoreMs`, the gap after this score. It is scaled by the *config's*
+    `slower`, not the score's.
+  - `effect`: the class toggled on the spel (or its characters), default `"visible"`. Another name (e.g.
+    `"glow"`) gives a highlight effect on text that is already visible; the page's CSS defines it, and
+    only `"visible"` gets the `charIntervalMs` delay between characters.
+  - `shuffle: true`: the score's items are played in a new random order each time.
+
+A score with no entry (or no `scoreSettings`) behaves exactly as before. See `shi/nbks/data/maple-bridge/config.js`.
 
 ## Centring on the extent
 

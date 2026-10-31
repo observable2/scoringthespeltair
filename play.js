@@ -2,6 +2,7 @@ import { sleep, msToTime } from "./timing.js";
 import { createDevLog } from "./dev.js";
 import { toggleSpel } from "./display.js";
 import { sumPauses } from "./score.js";
+import { shuffle } from "./math.js";
 async function play(config, fieldElem, spels, paras, scores) {
   const devLog = createDevLog(config);
   const legacyKeys = ["charInterval", "interCycle", "interScore", "scoredPause", "creditsPause"].filter(k => k in config);
@@ -13,7 +14,8 @@ async function play(config, fieldElem, spels, paras, scores) {
     idx,
     loopCount = 0,
     loopMsg,
-    numParas = paras.length,
+    // with config.cycleScores a pass plays every score in turn, so there is one "paragraph" to the cycle
+    numParas = config.cycleScores ? 1 : paras.length,
     paraNum = config.startingPoint,
     score,
     scoreNum = 0,
@@ -37,14 +39,26 @@ async function play(config, fieldElem, spels, paras, scores) {
     if (paraNum == config.startingPoint) cycStart = Date.now();
     // looping forever ...
     loopMsg = `loop: ${loopCount++}`;
+    // one score per paragraph pass, or (config.cycleScores) every score, in order
+    const passScores = config.cycleScores ? scores.map((_, i) => i) : [scoreNum];
+    for (const sNum of passScores) {
+    if (!config.running) break;
     // with fadeWords 0 the field was faded out after the previous paragraph: bring it back
     if (config.fadeWords === 0) fieldElem.style.opacity = 1;
+    // per-score overrides, from config.scoreSettings[sNum] (see README, "Per-score settings"):
+    // slower and interScoreMs replace the config's for this score; effect is the class toggled
+    // (default "visible"); shuffle plays the score's items in a new random order each time
+    const settings = config.scoreSettings?.[sNum] ?? {};
+    const slower = settings.slower ?? config.slower;
+    const interScoreMs = settings.interScoreMs ?? config.interScoreMs;
+    const toggleOpts = { effect: settings.effect, slower: settings.slower };
     // TODO - ALLOW MULTIPLE SCORES PER PARA (scoreNum goes to 0 on paraNum change)
-    devLog(scoreNum, paraNum);
-    score = scores[scoreNum];
+    devLog(sNum, paraNum);
+    score = scores[sNum];
+    if (settings.shuffle) score = shuffle(score);
     // >>> (currently) unused mechanism for generating quasi-random scores on the fly (see 'Uchaf'):
-    // if (typeof scores[scoreNum] === "string") {
-    //   switch (scores[scoreNum]) {
+    // if (typeof scores[sNum] === "string") {
+    //   switch (scores[sNum]) {
     //     case "schorus":
     //       // score = schorus();
     //       break;
@@ -53,12 +67,12 @@ async function play(config, fieldElem, spels, paras, scores) {
     //   }
     //   prevScore = score;
     // } else {
-    //   score = scores[scoreNum];
+    //   score = scores[sNum];
     // }
     // <<<
-    // devLog(scoreSet, "scoreNum", scoreNum, scoreSet[scoreNum]); // DEBUG
+    // devLog(scoreSet, "scoreNum", sNum, scoreSet[sNum]); // DEBUG
     devLog("scores:",scores); // DEBUG
-    devLog("score:", scoreNum, "score items:", score.length);
+    devLog("score:", sNum, "score items:", score.length);
     //
     // This is where we inner-loop through each item in the current score and
     // display the string of its spel for the length of time in its pause property.
@@ -66,12 +80,12 @@ async function play(config, fieldElem, spels, paras, scores) {
       if (!config.running) break;
       let spelId = score[idx].id;
       // an 'AUTOFADE' score item can override the config.fadeWords default
-      if (spelId === "AUTOFADE") { 
+      if (spelId === "AUTOFADE") {
         devLog("autoFade");
         // calculate autofade pause based on number of fadeWords
         fadeWords = score[idx].pause; // repurposing the pause property for AUTOFADE spels
         fadePause = sumPauses(score, idx, fadeWords);
-        devLog("In-score AUTOFADE of:", fadeWords, "at score:", scoreNum, "item:", idx);
+        devLog("In-score AUTOFADE of:", fadeWords, "at score:", sNum, "item:", idx);
         continue;
       }
       // >>> provide some info:
@@ -82,7 +96,7 @@ async function play(config, fieldElem, spels, paras, scores) {
         // str contain the spel's html string
       }
       yieldMsg =
-        loopMsg + `, score: ${scoreNum}, item: ${idx}, paraNum: ${paraNum}, id: ${spelId}, `;
+        loopMsg + `, score: ${sNum}, item: ${idx}, paraNum: ${paraNum}, id: ${spelId}, `;
       yieldMsg += `string: '${str}', pause: ${score[idx].pause}`;
       // devLog(yieldMsg);
       // <<< (in other contexts:) yield yieldMsg;
@@ -92,11 +106,11 @@ async function play(config, fieldElem, spels, paras, scores) {
       if (spelId !== "PAUSE") {
         // just pause and continue
         elem = document.getElementById(spelId);
-        await toggleSpel(elem, config);
+        await toggleSpel(elem, config, toggleOpts);
         // DEBUG devLog(elem.innerHTML);
       }
       // pause for both actual spels and PAUSE items
-      await sleep(score[idx].pause * config.slower); // pauses usually taken from the temporal data
+      await sleep(score[idx].pause * slower); // pauses usually taken from the temporal data
       if (spelId === "PAUSE") continue;
       // not a pause item, so check for fadeWords
       if (fadeWords > 0) {
@@ -105,11 +119,12 @@ async function play(config, fieldElem, spels, paras, scores) {
       if (fadePause > 0) {
         // let ridx = mod(idx - fadeWords, score.length);
         // fadePause += score[idx].pause - score[ridx].pause;
-        sleep(fadePause * config.slower).then(() => toggleSpel(elem, config));
+        sleep(fadePause * slower).then(() => toggleSpel(elem, config, toggleOpts));
       }
     } // end of loop thru current score
-    // DEBUG devLog("fadePause", fadePause, "interScr", config.interScoreMs);
-    await sleep((fadePause + config.interScoreMs) * config.slower); // pause between scores
+    // DEBUG devLog("fadePause", fadePause, "interScr", interScoreMs);
+    // pause between scores: the fade-out is scored (slower, the score's), the gap is not
+    await sleep(fadePause * slower + interScoreMs * config.slower);
     // >>> remove old paragraph:
     if (config.fadeWords === 0) {
       devLog(">>> remove old paragraph");
@@ -119,6 +134,7 @@ async function play(config, fieldElem, spels, paras, scores) {
       await sleep(500 * config.slower);
     }
     // <<<
+    } // end of loop thru this pass's scores
     // bump paraNum if needed
     paraNum = ++paraNum % numParas;
     // can set a higher starting point in config, usually for debugging
