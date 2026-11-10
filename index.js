@@ -1,6 +1,8 @@
 // public API for scoringthespeltair
 export { play } from "./play.js";
-export { defaultConfig } from "./config.js";
+export { createConfig, normalizeConfig, measuredWith, checkMeasuredWith, configSchema, configAliases, defaults, defaultConfig } from "./config.js";
+export { typeCss } from "./typography.js";
+export { mount } from "./mount.js";
 export { sleep, msToTime } from "./timing.js";
 export { mod, shuffle } from "./math.js";
 export { createDevLog } from "./dev.js";

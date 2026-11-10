@@ -19,21 +19,21 @@ or import individual files:
 - `scoringthespeltair/timing.js` → `sleep`, `msToTime`
 - `scoringthespeltair/math.js` → `mod`, `shuffle`
 - `scoringthespeltair/dev.js` → `createDevLog`
-- `scoringthespeltair/config.js` → `defaultConfig` (generic timing/behavior defaults, and defaults for settings that only the pages apply, such as `fontWeight`; see [Configuration](#configuration))
+- `scoringthespeltair/config.js` → `createConfig`, `configSchema`, `defaults`, `normalizeConfig`, `measuredWith`, `checkMeasuredWith`, and the legacy `defaultConfig` (see [Configuration](#configuration))
+- `scoringthespeltair/typography.js` → `typeCss(config, selector)`: the type CSS and fade-time variables, from the config
+- `scoringthespeltair/mount.js` → `mount(config, fieldElem, { spels, measuredWith, center })` (browser only): put the spels in the field, split into characters if `charFades`, centre
 
 ## Usage
 
-Each consuming project keeps its own content (`spels.json`, `paras.json`, `scores.json`)
-and its own `config.js` that spreads `defaultConfig` and adds project-specific values:
+Each consuming project keeps its own content (`spels.json`, `paras.json`, `scores.json`) and a
+config, made with `createConfig`:
 
 ```js
-import { defaultConfig } from "scoringthespeltair/config.js";
+import { createConfig } from "scoringthespeltair/config.js";
 
-const config = {
-  ...defaultConfig,
-  startingPoint: 0,
-  numParas: 1,
-};
+const config = createConfig({
+  fadeWords: 0, // only what differs from the engine's defaults
+});
 export { config };
 ```
 
@@ -42,27 +42,101 @@ const { play } = await import("scoringthespeltair/play.js");
 play(config, fieldElem, spels, paras, scores);
 ```
 
+A project made from the scoring template (`nbks/scoring-template.html`) does not write that config
+by hand: the notebook **exports** `config.json` with the data, and the player reads it:
+
+```js
+import { createConfig, typeCss, mount, play } from "scoringthespeltair";   // or the jsDelivr URL, see Releases
+const config = createConfig(await FileAttachment("./data/config.json").json(), { /* player-only overrides */ });
+// in a <style>: ${typeCss(config, "#field")} gives the field the type the notebook measured
+const spels = new Map(await FileAttachment("./data/spels.json").json());
+mount(config, fieldElem, { spels });
+if (config.running) play(config, fieldElem, spels, await FileAttachment("./data/paras.json").json(), await FileAttachment("./data/scores.json").json());
+```
+
 ## Configuration
 
-The engine's `config.js` holds a **default for every setting**; a scoring project (a notebook, and
-the player page that plays what it exports) **overrides only what it needs** by spreading
-`defaultConfig`. This is the pattern for every configurable detail:
+**One definition, three scopes.** `configSchema` in `config.js` defines every setting once: its default,
+its scope and a line of documentation. The notebook shows it as a table. `createConfig(overrides)` is
+the defaults plus your overrides, with legacy names mapped to current ones, and a console warning for a key
+it does not know (a typo would otherwise be ignored) or that is retired. Keys of your own are kept.
 
-1. Add the setting, with its default, to `defaultConfig` in the engine's `config.js`, commenting who
-   uses it. Some settings are used by the engine (`slower`, `fadeWords`, the `...Ms` times); others
-   only by the pages that show the piece (`fontWeight`): the engine does not apply those, it just
-   carries the default so that every page reads the same one.
-2. A project overrides it in its own config: the notebook's `config` cell
-   (`{ ...defaultConfig, fontWeight: 300 }`) and, for what the player also needs, `nbks/data/config.js`.
-   Leave a key out to take the engine's default.
-3. The pages apply it: the notebook's `.set` style reads `config.fontWeight`, and the player sets
-   `#field`'s `font-weight` from it. A value that affects the measured positions (the weight does:
-   spel data is measured at one weight) must be the same in the notebook and the player, which is why
-   it is in the config and not in each page's CSS.
+| Scope | What it is | Who must agree |
+|---|---|---|
+| `measure` | the type and layout the spels are measured in: `fontFamily`, `fontWeight`, `fontSizeVw`, `lineHeight`, `opsz`, `ligatures`, `clmnRight` | notebook and player: the spel data depends on them. `typeCss` writes them as CSS for both. `measuredWith(config)` is exported as `measured.json`; `mount()` warns if a page's type differs |
+| `play` | read by `play()`: `running`, `startPara`, `cycleScores`, `scoreSettings`, `fadeWords`, `paraFadeWords`, `charFades`, `charIntervalMs`, `durationScale`, `interScoreMs`, `interCycleMs`, `creditsPauseMs`, `fieldFadeMs`, `clearPauseMs`, `PRODUCTION` | the player |
+| `page` | applied by the page's CSS: `spelFadeMs`, `charFadeMs` (as `--spel-fade`, `--char-fade`, `--field-fade`) | the pages |
 
-`fontWeight` (default 400) is the first setting done this way. Still set directly in the pages' CSS, and
-to be brought into the config in the same way when the configuration is tidied and finalized: the font
-family and size, line height, the optical-size axis, `clmnRight`, the page margin.
+**The defaults** (`createConfig`): `durationScale` 1, `fontWeight` 300, `fontSizeVw` 3, `lineHeight` 1.8, `opsz` 14,
+`ligatures` "no-common-ligatures", `fadeWords` 5, `charFades` true, `charIntervalMs` 80,
+`interScoreMs` 3000, `interCycleMs` 3000, `creditsPauseMs` 0, `startPara` 0, `fieldFadeMs` 2500,
+`clearPauseMs` 500, `spelFadeMs` 1500, `charFadeMs` 1300. The table in the notebook has them all.
+
+**Adding a setting:** add it to `configSchema` (default, scope, doc). If the pages apply it, add it to
+`typeCss` or have the page read it from the config. If `play()` reads it, a `config.x ?? defaults.x`
+fallback keeps a config that was not made by `createConfig` working.
+
+**Legacy: `defaultConfig`.** The 0.x object, kept exactly as it was (plus `cycleScores` and `PRODUCTION`)
+so that a project that spreads it plays exactly as before. Its values differ from the new defaults
+(`slower` 1.3 (now `durationScale`), `fontWeight` 400). A project can stay on it for ever; new projects use `createConfig`.
+Moving over means writing down the old values you relied on (reading relies on `slower: 1.3`, which is `durationScale: 1.3`).
+
+### Names that changed in 0.5.0
+
+| Old | Now | Notes |
+|---|---|---|
+| `startingPoint` | `startPara` | the old name still works (`play()` and `createConfig` accept both; if both are given `startPara` wins). Renamed in reading, reunion, shi and the reference player |
+| `slower` | `durationScale` | multiplies every duration (above 1 lasts longer), so it is named for what it scales. The old name still works, as a config key and inside each `scoreSettings` entry; `toggleSpel`'s option takes either. Renamed in reunion and the three shi poems |
+| `numParas` | (retired) | never read by the engine: the number of paragraphs is `paras.length`. Removed from reading and the reference player; `createConfig` warns if it is given |
+| `scoredPauseMs` | (retired) | never read by the engine |
+| (hard-coded `2750`, `500` in `play()`) | `fieldFadeMs` + 250, `clearPauseMs` | with `fadeWords: 0`; defaults give the same times as before |
+
+Also fixed: `paraFadeWords` is now looked up on every pass; before, only for the first paragraph.
+
+Known and unchanged: with `cycleScores` off, the score for a pass is `scores[scoreNum]` where `scoreNum`
+always starts at 0, so `startPara` chooses the paragraph, not the first score (the TODO in `play.js`).
+
+### `ofld`, `sctn`, `chpt`
+
+An **`ofld` (open field) is a screen**: the scene, of any length, on display at one time. The notebook
+measures every spel from the top of its ofld, and the player is free to show one ofld after another at
+the same origin. Playing an ofld as a unit (clearing it, moving to the next) is not yet done by the engine:
+today it plays `paras` in order, as before. `sctn` and `chpt` are **measurement only**: every spel records
+its section and chapter, nothing uses them.
+
+## Releases
+
+The engine is released by **tagging** (`v0.5.0`, `v0.5.1`, ...). A consuming project names a tag, never
+a branch, so what a project plays only changes when you change the tag.
+
+A project names the engine in two places, and both name the same tag:
+
+1. `package.json` (and so `package-lock.json`): `"scoringthespeltair": "github:observable2/scoringthespeltair#v0.5.0"`
+2. each jsDelivr URL in the notebooks and players (`cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.5.0/...`).
+   The scoring template keeps its one in the first cell (`const engine = ...`).
+
+**To release** (in this repo): finish the work, `npm test`, set `version` in `package.json`, commit, then
+`git tag v0.5.1 && git push && git push --tag`.
+
+**To move a project to a release**, in the project's folder:
+
+```
+node node_modules/scoringthespeltair/scripts/bump.js v0.5.1
+```
+
+It runs `npm install github:observable2/scoringthespeltair#v0.5.1` (updating `package.json` and
+`package-lock.json`) and rewrites the tag in every jsDelivr URL under `nbks/`. Add `--dry` to see what it
+would do first. Then look at the piece in `npm run preview`, and commit `package.json`,
+`package-lock.json` and `nbks/`. That is the whole procedure; GitHub Pages builds with `npm ci`, so it
+uses exactly the tag in the lockfile. (If the project has no `node_modules/scoringthespeltair` yet, run
+`npm install` first. The first bump to a tag cannot use the script from a tag that does not have it:
+change the two places by hand once, as above.)
+
+Do not use `@main` in a project you deploy: a push to the engine would change the piece, and jsDelivr
+caches `@main` so it can also lag. It is fine in a notebook you are experimenting in.
+
+When a release changes how a config must be written, the section "Names that changed" above says so;
+old names keep working through 1.x.
 
 ## Per-score settings
 
@@ -72,10 +146,10 @@ needs each score to behave differently. Two config keys, both optional:
 - `cycleScores: true`: one cycle plays **every** score in `scores.json`, in order (the default is one
   score per paragraph, `paras[i]` with `scores[i]`). There is then a single "paragraph" to the cycle.
 - `scoreSettings`: an array indexed by score number; each entry may hold any of
-  - `slower`: replaces `config.slower` for this score: its pauses, its scored fade-outs and (with `charFades`)
+  - `durationScale`: replaces `config.durationScale` for this score: its pauses, its scored fade-outs and (with `charFades`)
     the per-character delay. `0` plays the score at once.
   - `interScoreMs`: replaces `config.interScoreMs`, the gap after this score. It is scaled by the *config's*
-    `slower`, not the score's.
+    `durationScale`, not the score's.
   - `effect`: the class toggled on the spel (or its characters), default `"visible"`. Another name (e.g.
     `"glow"`) gives a highlight effect on text that is already visible; the page's CSS defines it, and
     only `"visible"` gets the `charIntervalMs` delay between characters.
@@ -127,7 +201,7 @@ JS re-measures only when glyph widths can change: when fonts finish loading
 Every time value in this library (`sleep`, `msToTime`, config keys, score `pause`
 values, reading-time estimates) is in **milliseconds**. Config keys end in `Ms`
 (`interCycleMs`, `interScoreMs`, `creditsPauseMs`, `charIntervalMs`, `scoredPauseMs`);
-`slower` and `fadeWords` are unitless. Convert at the boundary (e.g. recorded word
+`durationScale` and `fadeWords` are unitless. Convert at the boundary (e.g. recorded word
 timings in seconds `* 1000`), not inside the library.
 
 ### Migrating from 0.0.x (hundredths of a second)
@@ -146,8 +220,7 @@ timings in seconds `* 1000`), not inside the library.
 
 ## Versioning
 
-Tag releases with semver (`v1.0.0`, `v1.1.0`, ...). Consuming projects pin a specific
-tag/commit in their `package.json` dependency so engine changes are opt-in per project.
+Semver tags, `v0.5.0`, `v0.5.1`, ...; see [Releases](#releases) for how a project moves to one.
 
 ## Design notes
 

@@ -3,7 +3,16 @@ import { createDevLog } from "./dev.js";
 import { toggleSpel } from "./display.js";
 import { sumPauses } from "./score.js";
 import { shuffle } from "./math.js";
+import { defaults } from "./config.js";
 async function play(config, fieldElem, spels, paras, scores) {
+  // `config` is read live (a page can set config.running = false to stop the piece), so it is not
+  // copied. The legacy name startingPoint is accepted for startPara, and a config that did not
+  // come from createConfig plays as it always did (missing keys take no new defaults)
+  const startPara = config.startPara ?? config.startingPoint ?? 0;
+  // slower is the legacy name of durationScale (a config spreading the legacy defaultConfig has it)
+  const durationScale = config.durationScale ?? config.slower ?? defaults.durationScale;
+  const fieldFadeMs = config.fieldFadeMs ?? defaults.fieldFadeMs;
+  const clearPauseMs = config.clearPauseMs ?? defaults.clearPauseMs;
   const devLog = createDevLog(config);
   const legacyKeys = ["charInterval", "interCycle", "interScore", "scoredPause", "creditsPause"].filter(k => k in config);
   if (legacyKeys.length) console.warn(`scoringthespeltair: config keys ${legacyKeys.join(", ")} are ignored; times are now milliseconds with an Ms suffix (e.g. interCycleMs)`);
@@ -16,7 +25,7 @@ async function play(config, fieldElem, spels, paras, scores) {
     loopMsg,
     // with config.cycleScores a pass plays every score in turn, so there is one "paragraph" to the cycle
     numParas = config.cycleScores ? 1 : paras.length,
-    paraNum = config.startingPoint,
+    paraNum = startPara,
     score,
     scoreNum = 0,
     yieldMsg,
@@ -34,9 +43,10 @@ async function play(config, fieldElem, spels, paras, scores) {
   await sleep(config.interCycleMs); // pause before starting
   //
   // allows you to set a different fadeWords value for each paragraph
- if (typeof config.paraFadeWords != "undefined") fadeWords = config.paraFadeWords[paraNum];
  while (config.running) { // stopped with false in config
-    if (paraNum == config.startingPoint) cycStart = Date.now();
+    // a fadeWords for each paragraph, if config.paraFadeWords is given (looked up on every pass)
+    if (config.paraFadeWords) fadeWords = config.paraFadeWords[paraNum] ?? config.fadeWords;
+    if (paraNum == startPara) cycStart = Date.now();
     // looping forever ...
     loopMsg = `loop: ${loopCount++}`;
     // one score per paragraph pass, or (config.cycleScores) every score, in order
@@ -46,12 +56,12 @@ async function play(config, fieldElem, spels, paras, scores) {
     // with fadeWords 0 the field was faded out after the previous paragraph: bring it back
     if (config.fadeWords === 0) fieldElem.style.opacity = 1;
     // per-score overrides, from config.scoreSettings[sNum] (see README, "Per-score settings"):
-    // slower and interScoreMs replace the config's for this score; effect is the class toggled
+    // durationScale and interScoreMs replace the config's for this score (slower is the old name); effect is the class toggled
     // (default "visible"); shuffle plays the score's items in a new random order each time
     const settings = config.scoreSettings?.[sNum] ?? {};
-    const slower = settings.slower ?? config.slower;
+    const scale = settings.durationScale ?? settings.slower ?? durationScale;
     const interScoreMs = settings.interScoreMs ?? config.interScoreMs;
-    const toggleOpts = { effect: settings.effect, slower: settings.slower };
+    const toggleOpts = { effect: settings.effect, durationScale: settings.durationScale ?? settings.slower };
     // TODO - ALLOW MULTIPLE SCORES PER PARA (scoreNum goes to 0 on paraNum change)
     devLog(sNum, paraNum);
     score = scores[sNum];
@@ -110,7 +120,7 @@ async function play(config, fieldElem, spels, paras, scores) {
         // DEBUG devLog(elem.innerHTML);
       }
       // pause for both actual spels and PAUSE items
-      await sleep(score[idx].pause * slower); // pauses usually taken from the temporal data
+      await sleep(score[idx].pause * scale); // pauses usually taken from the temporal data
       if (spelId === "PAUSE") continue;
       // not a pause item, so check for fadeWords
       if (fadeWords > 0) {
@@ -119,36 +129,36 @@ async function play(config, fieldElem, spels, paras, scores) {
       if (fadePause > 0) {
         // let ridx = mod(idx - fadeWords, score.length);
         // fadePause += score[idx].pause - score[ridx].pause;
-        sleep(fadePause * slower).then(() => toggleSpel(elem, config, toggleOpts));
+        sleep(fadePause * scale).then(() => toggleSpel(elem, config, toggleOpts));
       }
     } // end of loop thru current score
     // DEBUG devLog("fadePause", fadePause, "interScr", interScoreMs);
-    // pause between scores: the fade-out is scored (slower, the score's), the gap is not
-    await sleep(fadePause * slower + interScoreMs * config.slower);
+    // pause between scores: the fade-out is scored (durationScale, the score's), the gap is not
+    await sleep(fadePause * scale + interScoreMs * durationScale);
     // >>> remove old paragraph:
     if (config.fadeWords === 0) {
       devLog(">>> remove old paragraph");
       fieldElem.style.opacity = 0;
-      await sleep(2750 * config.slower);
+      await sleep((fieldFadeMs + 250) * durationScale);
       paras[paraNum].forEach(p => document.getElementById(p).classList.toggle("visible"));
-      await sleep(500 * config.slower);
+      await sleep(clearPauseMs * durationScale);
     }
     // <<<
     } // end of loop thru this pass's scores
     // bump paraNum if needed
     paraNum = ++paraNum % numParas;
     // can set a higher starting point in config, usually for debugging
-    if (paraNum == 0) paraNum += config.startingPoint;
+    if (paraNum == 0) paraNum += startPara;
     //
-    if (paraNum == config.startingPoint) {
+    if (paraNum == startPara) {
       devLog("--- end of cycle --- Duration:", msToTime(Date.now() - cycStart)); // DEBUG
-      await sleep(config.interCycleMs * config.slower); // end of cycle pause
+      await sleep(config.interCycleMs * durationScale); // end of cycle pause
       if (config.creditsPauseMs > 0) {
         const bl = document.getElementById("byline"); // optional element
         if (bl) bl.style.opacity = 1;
-        await sleep(config.creditsPauseMs * config.slower); // credits pause
+        await sleep(config.creditsPauseMs * durationScale); // credits pause
         if (bl) bl.style.opacity = 0;
-        await sleep(config.interCycleMs * config.slower); // end of cycle pause
+        await sleep(config.interCycleMs * durationScale); // end of cycle pause
       }
     }
     // bump scoreNum

@@ -9,22 +9,47 @@
     *Scoring the Spelt Air* is a gathering of tools and conventions that will allow you to draft and animate pieces of writing for display on screens and the web. It uses the Observable Notebook platform for drafting and configuration. This notebook itself can be copied (more properly, *forked*) so as to allow you to draft and configure your own pieces of writing. Doing so then allows you to produce and download playable specifications for your writing. A separate suite of JavaScript programs will then *play* the animations you have composed and designed.
   </script>
   <script id="3254" type="module" pinned="">
-    // The engine's defaultConfig has a default for every setting (jsDelivr, as for the estimators
-    // below); a scoring project overrides only what it needs, here and, for what the player also
-    // uses, in its own nbks/data/config.js. See notes (in Markdown cells) on Configuration below.
-    import { defaultConfig } from "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/config.js"
-    const config = {
-      ...defaultConfig,
-      // Paragraphs, columns, fields etc. are no longer configured here: they come from the
-      // <!--@ ... --> markup in the galley (see `containment` and `layout` below).
-      fontWeight: 300, // overrides the engine's default (400); the player must be given the same value
-      clmnRight: 48 // vw added to the left of every spel in a clmn named "right" (left clmn of the sample is 42.4vw wide)
+    // THE ENGINE, from GitHub through jsDelivr (not raw.githubusercontent.com, which serves
+    // text/plain, so browsers refuse it as a module). This is the one place the notebook names the
+    // engine's version: "@main" follows the branch (cached, so it can lag a push, and is unreleased); a release tag
+    // such as "@v0.5.0" pins it. Move to a new release by changing this one tag (the engine's
+    // scripts/bump.js does it for a whole project; see the engine's README, "Releases").
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.5.0"
+    const { createConfig, configSchema, measuredWith } = await import(`${engine}/config.js`)
+    const { typeCss } = await import(`${engine}/typography.js`)
+
+    // createConfig gives every setting the engine's default (see the table of settings below) and
+    // applies only what you override here. It warns in the console about a key it does not know.
+    // The same config, exported (see Export below), is what the player reads, so the notebook and
+    // the player cannot disagree. Paragraphs, columns, fields etc. are not configured here: they
+    // come from the <!--@ ... --> markup in the galley (see `containment` and `layout` below).
+    const config = createConfig({
+      // --- MEASURE: the type and layout the spels are measured in. The spel data depends on these.
+      clmnRight: 48, // vw added to the left of every spel in a clmn named "right" (left clmn of the sample is 42.4vw wide)
       // a clmn named "left" (or unnamed, or no clmn at all) adds 0
-    }
+      // fontWeight: 300,         // default
+      // fontSizeVw: 3,           // default; spel positions scale with it
+      // lineHeight: 1.8,         // default
+      // opsz: 14,                // default (null: leave to the browser)
+      // ligatures: "no-common-ligatures", // default
+      // fontFamily: "Source Serif 4",     // default (loaded from Google Fonts)
+
+      // --- PLAY: read by the engine while the piece plays (override here to try it; export to use it)
+      // charFades: true,         // reveal spels character by character; false: whole spels
+      // charIntervalMs: 80,
+      // fadeWords: 5,            // n: fade each spel n spels later; 0: show, then remove the paragraph; -1: the scores fade
+      // durationScale: 1,        // multiplier on all durations (2: everything lasts twice as long)
+      // interScoreMs: 3000, interCycleMs: 3000, creditsPauseMs: 0,
+      // startPara: 0,            // paragraph where each cycle starts
+      // cycleScores: false,      // true: one cycle plays every score (see scoreSettings)
+      // scoreSettings: [ { durationScale: 0.5, effect: "glow", shuffle: true, interScoreMs: 0 } ],
+    })
   </script>
   <script id="5875" type="module" pinned="">
     // paragraph name -> array of spel ids; names come from the markup (para:name) or are para1, para2, ...
     const paras = layout.para
+    // the paragraphs as an array of arrays of spel ids, in text order: the shape the player's paras.json has
+    const paraList = layout.order.para.map((name) => paras[name])
     display(paras)
   </script>
   <script id="2861" type="module" pinned="">
@@ -83,17 +108,23 @@
   </script>
   <script id="4401" type="module" pinned="">
     // Measures the spanned galley and groups its spels by the markup's containment.
-    // Returns { text, spels: Map(id -> spel), para, clmn, ofld, sctn, chpt }
-    // where each of the last five is { name: [spel ids in text order] }.
+    // Returns { text, spels: Map(id -> spel), order, para, clmn, ofld, sctn, chpt }
+    // where each of the last five is { name: [spel ids in text order] } and order is
+    // { para: [names in text order], clmn: [...], ... }.
     const mapParaSpels = (spanned) => {
       const spels = new Map();
       const groups = { para: {}, clmn: {}, ofld: {}, sctn: {}, chpt: {} };
+      // names in text order: an object's keys are not (integer-like names such as "2" and "10" sort first)
+      const order = Object.fromEntries(Object.keys(groups).map((k) => [k, []]));
       for (const spel of getSpelArray(spanned)) {
         spels.set(spel.id, spel);
         for (const kind of Object.keys(groups))
-          if (spel[kind]) (groups[kind][spel[kind]] ??= []).push(spel.id);
+          if (spel[kind]) {
+            if (!(spel[kind] in groups[kind])) order[kind].push(spel[kind]);
+            (groups[kind][spel[kind]] ??= []).push(spel.id);
+          }
       }
-      return { text: spanned.parsed.text, spels, ...groups };
+      return { text: spanned.parsed.text, spels, order, ...groups };
     }
   </script>
   <script id="844" type="module" pinned="">
@@ -426,11 +457,8 @@
     #### *Default linear* `scores` *produced by the engine's* `timeToRead` *estimators*
   </script>
   <script id="5749" type="module" pinned="">
-    // The reading-time estimators come from the engine, from GitHub through jsDelivr (not
-    // raw.githubusercontent.com, which serves text/plain, so browsers refuse it as a module).
-    // @main follows the branch but is cached, so it can lag behind a push; use a tag to pin.
-    // They return milliseconds.
-    import { spelTime } from "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@main/timetoread.js"
+    // The reading-time estimators come from the engine (see `engine` above). They return milliseconds.
+    const { spelTime } = await import(`${engine}/timetoread.js`)
   </script>
   <script id="5741" type="module" pinned="">
     // one score (array of { id, pause }) per para, in text order. A spel's pause (ms) is spelTime:
@@ -439,7 +467,7 @@
     // white-space: pre, so its whitespace is respected. The last spel of a para also carries the
     // end-of-para pause ({ end: true }).
     const readOptions = { whitespace: "respect" }
-    const scores = Object.values(paras).map((ids) =>
+    const scores = paraList.map((ids) =>
       ids.map((id, i) => {
         const spel = spels.get(id);
         const following = Array.from(spels.values())[spel.index + 1];
@@ -457,18 +485,19 @@
   <script id="16" type="text/html" pinned="" output="css">
     <style>
 
-      /* 'Source Serif 4' is loaded from Google Fonts by the fontReady cell */
+      /* config.fontFamily ('Source Serif 4') is loaded from Google Fonts by the fontReady cell */
       html {
         margin: 2vw;
       }
 
+      /* the type (family, size, weight, line height, ligatures, optical size) and the fade times
+         (--spel-fade, --char-fade, --field-fade) all come from the config, through the engine's
+         typeCss, and so are the same in the player, which calls typeCss with its own selector */
+      ${typeCss(config, ".set")}
+
       .set {
         white-space: pre;
         position: relative;
-        font-family: 'Source Serif 4', serif;
-        font-size: 3vw;
-        font-weight: ${config.fontWeight}; /* from config: the engine holds the default, the project overrides */
-        line-height: 1.8;
       }
 
       /* horizontal rule drawn by addSpansTo between ofld's (display only; not measured) */
@@ -482,15 +511,29 @@
       .spel {
         position: absolute;
         opacity: 0;
-        transition: all 1.5s ease-in-out; /* vendorless fallback */
-        -o-transition: all 1.5s ease-in-out; /* opera */
-        -ms-transition: all 1.5s ease-in-out; /* IE 10 */
-        -moz-transition: all 1.5s ease-in-out; /* Firefox */
-        -webkit-transition: all 1.5s ease-in-out; /*safari and chrome */
+        transition: all var(--spel-fade) ease-in-out;
       }
 
       .spel.visible {
         opacity: 1;
+      }
+
+      /* with charFades each spel is split into .char spans (the engine's splitIntoChars), which carry the fade */
+      .char {
+        opacity: 0;
+        transition: all var(--char-fade) ease-in-out;
+      }
+
+      .char.visible {
+        opacity: 1;
+      }
+
+      /* an "effect" other than "visible" in a score's settings (see Playback below) is a class the
+         page defines: this one lights up text that is already visible */
+      .glow {
+        color: lemonchiffon;
+        text-shadow: 0 -0.3ch 0.5ch white, 0 0.3ch 0.5ch white,
+          0 -0.6ch 1ch white, 0 0.6ch 1ch white;
       }
 
       #display {
@@ -530,14 +573,15 @@
     // measurements, and the player's, use the same font file. Roman and italic, at config.fontWeight and bold.
     // `fontReady` resolves once the stylesheet and the faces actually used are loaded;
     // cells that measure text wait for it (see `spanned`).
-    const fontFamily = "Source Serif 4"
+    const fontFamily = config.fontFamily
     // the faces in use, as the start of a font shorthand: roman and italic, at config.fontWeight and bold
     const faces = ["", "italic "].flatMap((s) => [config.fontWeight, 700].map((w) => `${s}${w} `))
     const fontReady = (async () => {
       const link = document.createElement("link");
       link.rel = "stylesheet";
       // a weight range, not a list: Source Serif 4 is a variable font, so any config.fontWeight works
-      link.href = "https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,200..900;1,200..900&display=swap";
+      // (built from config.fontFamily: it must be a Google font with a wght axis)
+      link.href = `https://fonts.googleapis.com/css2?family=${fontFamily.replace(/ /g, "+")}:ital,wght@0,200..900;1,200..900&display=swap`;
       const loaded = new Promise((resolve, reject) => {
         link.onload = resolve;
         link.onerror = () => reject(new Error(`Could not load the stylesheet for ${fontFamily}: ${link.href}`));
@@ -571,6 +615,38 @@
   <script id="3479" type="module" pinned="">
     const randInt = (maxPlusOne) => (maxPlusOne * Math.random()) | 0
   </script>
+  <script id="6001" type="text/markdown">
+    ---
+    ### Settings and Export
+    Every setting the engine knows, where it applies (`measure`: changes the measured positions; `play`: read by the engine; `page`: applied by the page's CSS), the engine's default, and the value this notebook uses (a ● marks one you have changed). Override in the `config` cell at the top.
+  </script>
+  <script id="6002" type="module" pinned="">
+    // every setting, its scope, the engine's default and the value in use
+    Inputs.table(Object.entries(configSchema).map(([key, d]) => ({
+      key, scope: d.scope, default: d.default, value: config[key],
+      changed: JSON.stringify(config[key]) !== JSON.stringify(d.default) ? "●" : "", doc: d.doc
+    })), { rows: 30, layout: "auto" })
+  </script>
+  <script id="6003" type="module" pinned="">
+    // Export: the files the player reads, in the shape its pages read them. Download them into the
+    // project's nbks/data/ (or the piece's own folder there). config.json is the whole config above:
+    // the player makes its own from it (createConfig) and takes its type CSS from it (typeCss), so
+    // nothing is set twice. measured.json is only for a player page that keeps its own CSS: pass it
+    // to mount() and the player warns if its type differs from what the spels were measured at.
+    const piece = {
+      "spels.json": Array.from(spels.entries()), // [[id, spel], ...]: the player builds a Map from it
+      "paras.json": paraList, // [[spel ids of para 1], [para 2], ...] in text order
+      "scores.json": scores, // [[{id, pause}, ...] per para]
+      "config.json": JSON.parse(JSON.stringify(config)),
+      "measured.json": measuredWith(config)
+    }
+    const links = Object.entries(piece).map(([name, data]) => {
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }))
+      invalidation.then(() => URL.revokeObjectURL(url))
+      return html`<a href="${url}" download="${name}">${name}</a>`
+    })
+    display(html`<p>Download: ${links.flatMap((a, i) => (i ? [" · ", a] : [a]))}</p>`)
+  </script>
   <script id="5876" type="text/markdown">
     ---
 
@@ -579,9 +655,15 @@
   </script>
   <script id="5877" type="text/markdown">
     ### Configuration
-    The `config` object holds the few settings that markup cannot give. It is `{ ...defaultConfig, ...overrides }`: **the engine's `config.js` has a default for every setting, and this project overrides only what it needs**. So far: `fontWeight` (the weight of the type the spels are measured and shown in; the engine's default is 400, this project says 300; the player must be given the same value, in its `nbks/data/config.js`) and `clmnRight` (the vw added to every spel in a `clmn:right`). Everything else about the structure of a piece comes from the markup in the galley (see **Markup** below).
+    The `config` object is made by the engine's `createConfig(overrides)`: **the engine has a default for every setting (its `configSchema`), and this notebook overrides only what it needs.** The table above lists every setting, its scope and its default. A key `createConfig` does not know is warned about in the console (a typo would otherwise be ignored). Settings belong to one of three scopes:
 
-    **The pattern for every configurable detail:** put its default in the engine's `config.js`; override it here and, if the player needs it, in `nbks/data/config.js`; let each page apply it (the `.set` style here reads `config.fontWeight`; the player sets `#field`'s `font-weight` from it). The engine itself does not apply design settings such as `fontWeight`; it only carries the default. See the README, "Configuration".
+    - `measure`: the type and layout the spels are measured in (`fontFamily`, `fontWeight`, `fontSizeVw`, `lineHeight`, `opsz`, `ligatures`, `clmnRight`). The spel data depends on them, so the player must use the same. The `typeCss(config, selector)` call in the CSS cell writes the type CSS from them; the player calls the same function.
+    - `play`: read by the engine while it plays the piece (`durationScale`, `fadeWords`, `charFades`, the `...Ms` times, `startPara`, `cycleScores`, `scoreSettings`...). You can set them here to keep them with the piece; the export carries them to the player.
+    - `page`: applied by the page's CSS (`spelFadeMs`, `charFadeMs`; `fieldFadeMs` is also read by the engine).
+
+    **The player gets the config from the notebook, not by copy.** Download `config.json` (see Export) and, in the player, `const config = createConfig(await FileAttachment("./data/config.json").json(), { /* player-only overrides */ })`. Then `typeCss(config, "#field")` gives the field the same type the notebook measured. See the engine's README, "Configuration".
+
+    **Names:** units are in the key (`...Ms` milliseconds, `...Vw` vw). `startPara` is the old `startingPoint`, which still works. `numParas` and `scoredPauseMs` did nothing and are retired.
 
     **Paratextual elements**
 
@@ -597,7 +679,20 @@
 
     **Display elements**: spel(s), column(s) `clmn`, open field(s) `ofld`; all marked up.
 
+    - An **`ofld` is a screen**: the scene, of any length, that is on display at one time. Spels in an ofld are measured from its top; the next ofld starts again at the top of the field (the maker's display separates them with a rule). Several paras (and so several scores) may belong to one ofld.
+    - `sctn` and `chpt` are **measurement only** for now: every spel knows its section and chapter, and the engine does not use them.
+
     ‘Parsed’ means the element is represented in your raw text and derived from it automatically. (`char`, `line` and `work` are not implemented yet.)
+  </script>
+  <script id="6004" type="text/markdown">
+    ### Playback
+    What the engine does with the export (`play(config, fieldElem, spels, paras, scores)`):
+
+    - **Scores.** `scores` is an array of scores, one per para; a score is an array of `{ id, pause }`: show the spel `id`, wait `pause` ms (times `durationScale`), go on. The default scores above are linear (each spel in text order, `pause` from `spelTime`); edit them, or write your own, to compose the timing. Two special items: `{ id: "PAUSE", pause }` waits without showing anything, and `{ id: "AUTOFADE", pause: n }` sets `fadeWords` to `n` from here on.
+    - **Fading.** `fadeWords` > 0: each spel is faded again `fadeWords` spels after it (a moving window); `0`: the paragraph is shown, then removed as a whole; `-1`: the scores do their own fading (they toggle spels on and off); `paraFadeWords` gives one value per paragraph.
+    - **Characters.** With `charFades`, each spel is revealed one character at a time, `charIntervalMs` apart (the engine's `splitIntoChars` prepares the field).
+    - **Several scores for one poem.** `cycleScores: true` plays every score in order in a single cycle. `scoreSettings[n]` then sets, for score `n`: `durationScale`, `interScoreMs` (the gap after it), `effect` (the class toggled: `"visible"` by default, or another such as `"glow"`, which the page's CSS defines: see `.glow` above) and `shuffle` (play the items in a new random order each time). See `shi/nbks/data/maple-bridge/config.js` for ten scores in use.
+    - **Cycle.** `interScoreMs` after each score; `interCycleMs` before the first and at the end of each cycle; `creditsPauseMs` shows the element `#byline` at the end of each cycle.
   </script>
   <script id="5882" type="text/markdown">
     ### Markup
@@ -626,7 +721,9 @@
     display({para: markupParsed.para, clmn: markupParsed.clmn, ofld: markupParsed.ofld, sctn: markupParsed.sctn, chpt: markupParsed.chpt});
   </script>
   <script id="5893" type="text/markdown">
-    ### Status (2026-10-29)
+    ### Status (2026-11-10)
+
+    **Update 2026-11-10: configuration.** `config` is made by the engine's `createConfig` (every setting, scope and default is in the table under *Settings and Export*); the type CSS comes from the engine's `typeCss`, so the type is the same in the player; the engine is imported from one URL (the `engine` constant, first cell); `paraList` gives the paragraphs in text order; Export downloads `spels.json`, `paras.json`, `scores.json`, `config.json` and `measured.json`. Checked in headless Chrome (1200px wide, the engine served from local files): no cell errors, the table and the five download links appear, and the type is 36px / weight 300 / `no-common-ligatures` / `opsz 14`. The measured sample data is identical to the previous version's except that the template now measures without the `fi` ligature, as the player always displayed it (`fifty` is 5.931vw wide, not 5.639, and the words after it on its line move 0.29vw). Not checked: the download links' contents opened in a player, a font other than Source Serif 4, other window widths.
 
     **Pipeline**
 
@@ -648,7 +745,9 @@
     **Checked:** the ink-based version ran without cell errors in headless Chrome (1200px wide). The bounding-box version and the engine import have not yet been run in a browser. Not checked: other window widths, the values in `scores`, the Observable Desktop app.
 
     **To do**
-    - Tidy up and finalize the configuration details, following the pattern in Configuration: still set directly in CSS or code are the font family and size, the line height, the optical-size axis (the player fixes `opsz` at 14 to match the notebook), `clmnRight` (here only), and the page margin. Decide which belong in `defaultConfig`, which are per project, and how the exported `nbks/data/config.js` is produced from this notebook's `config` so that the two cannot disagree.
+    - The page margin (`html { margin: 2vw }`) is still set directly in CSS.
+    - A live preview that plays the scores here (the `#display` style is a leftover for it). `play()` finds spels by `document.getElementById`, and the check cell above uses the same ids, so it needs its own container and one of the two to be removed.
+    - Play `ofld`s as screens in the engine (see Configuration).
     - Self-host the font (`FileAttachment` + `@font-face`) for a published piece; the player must load the same font with the same axes for the data to match.
     - `char`, `line` and `work` elements (see Configuration).
     - Export the data for the player.

@@ -11,21 +11,22 @@ function splitIntoChars(root, selector = ".spel") {
 }
 
 // toggles a class (default "visible") on each character in a spel one at a time, with a delay
-// (config.charIntervalMs, times `slower`) after each character that becomes visible
-async function charToggle(spel, config, { effect = "visible", slower = 1 } = {}) {
+// (config.charIntervalMs, times the duration scale) after each character that becomes visible
+async function charToggle(spel, config, { effect = "visible", durationScale = 1 } = {}) {
   const chars = Array.from(spel.children);
   for (const char of chars) {
     char.classList.toggle(effect);
-    await sleep(char.classList.contains(effect) && effect === "visible" ? config.charIntervalMs * slower : 0);
+    await sleep(char.classList.contains(effect) && effect === "visible" ? config.charIntervalMs * durationScale : 0);
   }
 }
 
 // shows or hides a spel element, character by character if config.charFades.
 // `effect` is the class toggled (default "visible"; a score's settings can name another, e.g. "glow")
-// and `slower` multiplies the per-character delay (a score's own `slower`; see play.js)
-async function toggleSpel(elem, config, { effect = "visible", slower = 1 } = {}) {
+// and `durationScale` multiplies the per-character delay (a score's own; see play.js). `slower` is accepted as its old name
+async function toggleSpel(elem, config, { effect = "visible", durationScale, slower } = {}) {
+  durationScale = durationScale ?? slower ?? 1;
   if (config.charFades) {
-    await charToggle(elem, config, { effect, slower });
+    await charToggle(elem, config, { effect, durationScale });
   } else {
     elem.classList.toggle(effect);
   }
