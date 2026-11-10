@@ -81,7 +81,12 @@ for (const [name, rel] of Object.entries(projects)) {
     if (!existsSync(url)) return t.skip("project folder not present");
     const { config } = await import(url.href);
     const old = legacy[name];
-    assert.deepEqual(playValues(config), playValues(old), "play settings");
+    // every value the project had before is unchanged; the legacy defaultConfig now also lists two keys the
+    // engine always read (cycleScores, PRODUCTION), at the values that mean "as before"
+    const now = playValues(config), before = playValues(old);
+    const extra = Object.keys(now).filter((k) => !(k in before));
+    assert.deepEqual(Object.fromEntries(Object.entries(now).filter(([k]) => k in before)), before, "play settings");
+    assert.deepEqual(extra.filter((k) => now[k] !== false || !["cycleScores", "PRODUCTION"].includes(k)), [], "new keys, other than cycleScores/PRODUCTION false");
     assert.equal(config.fontWeight, old.fontWeight, "fontWeight");
   });
 }

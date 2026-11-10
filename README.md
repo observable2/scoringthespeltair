@@ -124,13 +124,17 @@ A project names the engine in two places, and both name the same tag:
 node node_modules/scoringthespeltair/scripts/bump.js v0.5.1
 ```
 
-It runs `npm install github:observable2/scoringthespeltair#v0.5.1` (updating `package.json` and
-`package-lock.json`) and rewrites the tag in every jsDelivr URL under `nbks/`. Add `--dry` to see what it
-would do first. Then look at the piece in `npm run preview`, and commit `package.json`,
-`package-lock.json` and `nbks/`. That is the whole procedure; GitHub Pages builds with `npm ci`, so it
-uses exactly the tag in the lockfile. (If the project has no `node_modules/scoringthespeltair` yet, run
-`npm install` first. The first bump to a tag cannot use the script from a tag that does not have it:
-change the two places by hand once, as above.)
+It (1) sets the dependency in `package.json` to the tag, (2) regenerates `package-lock.json` in a temporary
+folder and copies it back, then checks that it now pins the tag (npm run *inside* a workspace updates
+`package.json` but not a project's own lockfile, which is the one GitHub Pages builds from, so the script does
+not use npm there), (3) rewrites the tag in every jsDelivr URL under `nbks/` (a project that imports the engine
+from npm has none, and says so), and (4) outside a workspace, runs `npm install` to update `node_modules`
+(in a workspace, `node_modules` is the shared one and uses the local engine). Add `--dry` to see what it
+would do first. A tag that is not pushed fails with a message and leaves the lockfile alone. Then look at the
+piece in `npm run preview` and `npm run build`, and commit `package.json`, `package-lock.json` and `nbks/`.
+That is the whole procedure; GitHub Pages builds with `npm ci`, so it uses exactly the tag in the lockfile.
+(The first bump to a tag cannot use the script in `node_modules` if the installed engine predates it: run
+the one in the engine's folder instead, `node ../scoringthespeltair/scripts/bump.js v0.5.1`.)
 
 Do not use `@main` in a project you deploy: a push to the engine would change the piece, and jsDelivr
 caches `@main` so it can also lag. It is fine in a notebook you are experimenting in.
