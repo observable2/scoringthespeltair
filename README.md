@@ -9,10 +9,10 @@ that plays a sequence of "spels" according to a score, plus small utility helper
 Everything is re-exported from the package root (`import { play, defaultConfig, sleep } from "scoringthespeltair"`),
 or import individual files:
 
-- `scoringthespeltair/play.js` → `play(config, fieldElem, spels, paras, scores)`
+- `scoringthespeltair/play.js` → `play(config, fieldElem, spels, paras, scores, { generators })` (the last argument is optional)
 - `scoringthespeltair/display.js` → `toggleSpel`, `splitIntoChars` (wraps each character of every spel in a `.char` span, for `charFades`)
 - `scoringthespeltair/center.js` → `centerField` (browser only; see [Centring on the extent](#centring-on-the-extent))
-- `scoringthespeltair/score.js` → `sumPauses`
+- `scoringthespeltair/score.js` → `sumPauses`, `pauseItem`, `toggleItems`, `scoreFromTimings`, `resolveScore` (see [Generated scores](#generated-scores-and-timed-scores))
 - `scoringthespeltair/text.js` → `normalizeToken` (markdown-aware token cleanup; default `normalize` for the RiTa estimator)
 - `scoringthespeltair/timetoread.js` → `timeToRead`, `wordTime`, `whitespaceTime`, `spelTime`, `timeToReadDefaults` (no dependencies; markup handling is in the internal `markup.js`)
 - `scoringthespeltair/timetoread-rita.js` → `timeToReadRita`, `createTimeToReadRita`, `timeToReadRitaDefaults` (needs `rita`; not in the root export)
@@ -160,6 +160,38 @@ needs each score to behave differently. Two config keys, both optional:
   - `shuffle: true`: the score's items are played in a new random order each time.
 
 A score with no entry (or no `scoreSettings`) behaves exactly as before. See `shi/nbks/data/maple-bridge/config.js`.
+
+## Generated scores and timed scores
+
+Added for *uchaf*, usable by any piece.
+
+**A score that is made anew each time it comes round.** A score in `scores.json` is an array of
+`{ id, pause }` items. It may instead *name a generator*, so that a piece can play a different,
+quasi-random score on every pass (shuffled pairs, a chorus with a randomly chosen word ...). JSON cannot hold code,
+so the generators are the player page's own, handed to `play()`:
+
+```js
+// scores.json:  [ [ ...items... ], "chorus", { "generator": "shuffled", "args": [1, true] } ]
+import { generators } from "./data/generators.js";
+play(config, fieldElem, spels, paras, scores, { generators });
+```
+
+A generator is `(context, ...args) => score`. `context` is `{ spels, paras, scores, config, scoreNum, args }`
+(the same objects `play()` has, so a generator can read the pauses of other scores, e.g. the timed read-in).
+It must return an array of items; the engine's `shuffle` and the item helpers below are what generators are made of.
+A name `play()` was not given, or a result that is not an array, throws with the score number in the message.
+`scoreSettings` still applies to a generated score (`shuffle`, `effect`, `durationScale`, `interScoreMs`).
+Scores that are plain arrays play exactly as before; `options` can be left out.
+
+**Item helpers** (`score.js`):
+
+- `pauseItem(ms)` → `{ id: "PAUSE", pause: ms }`.
+- `toggleItems(items)` → the same spels again with `pause: 0`: played after a score (or as one) they toggle all of them at once.
+  This is how to fade what a score showed, or to show a whole verse in one go.
+- `scoreFromTimings(timings, { ids, extraMs })` → a score from recorded timings, `timings` being
+  `[{ start, end, word? }]` in **seconds**: each pause is the time from the start of a word to the start of the next
+  (the last word: its own length), in whole milliseconds, plus `extraMs` on every pause. `ids` gives the spel ids in order
+  (otherwise each timing's `word` is the id) and a mismatch in length throws.
 
 ## Centring on the extent
 

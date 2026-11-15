@@ -14,9 +14,13 @@
     // engine's version: "@main" follows the branch (cached, so it can lag a push, and is unreleased); a release tag
     // such as "@v0.5.0" pins it. Move to a new release by changing this one tag (the engine's
     // scripts/bump.js does it for a whole project; see the engine's README, "Releases").
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.5.0"
-    const { createConfig, configSchema, measuredWith } = await import(`${engine}/config.js`)
-    const { typeCss } = await import(`${engine}/typography.js`)
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.5.0";
+    const load = async (f) => {
+      try { return await import(`${engine}/${f}`); }
+      catch (e) { throw new Error(`Could not load the engine file ${f} from ${engine} (offline, or tag missing?): ${e.message}`); }
+    };
+    const { createConfig, configSchema, measuredWith } = await load("config.js");
+    const { typeCss } = await load("typography.js");
 
     // createConfig gives every setting the engine's default (see the table of settings below) and
     // applies only what you override here. It warns in the console about a key it does not know.
@@ -57,12 +61,6 @@
     const spels = layout.spels
     display(layout)
     display(spels)
-  </script>
-  <script id="5522" type="module" pinned="">
-    const spanString = Array.from(spels.values())
-      .map((spel) => spel.html)
-      .join("")
-    display(spanString)
   </script>
   <script id="582" type="module" pinned="">
     // `galley` tracks the element with id="galley" (defined in the separate HTML cell).
@@ -191,7 +189,7 @@
       }
     };
 
-    const getSpelArray = (spanned, size = 0) => {
+    const getSpelArray = (spanned) => {
       const { elem, parsed, cont } = spanned;
       // addSpansTo has already moved every clmn up to the top of its ofld, so these are actual
       const measured = measureBoxes(elem);
@@ -215,7 +213,7 @@
         const m = measured[i];
         // slug-number; the number keeps ids unique. An id that would start with a digit (a spel
         // like "1984", or one with no letters at all) gets "s-" so it can be used as #id in css
-        const base = [slugify(s.text), i + size].filter((x) => x !== "").join("-");
+        const base = [slugify(s.text), i].filter((x) => x !== "").join("-");
         const id = /^\d/.test(base) ? `s-${base}` : base;
         const leftvw = r3(pxToVw(m.left)); // actual: addSpansTo already offset the clmn
         const topvw = r3(pxToVw(m.top - origin.get(s.ofld)));
@@ -223,7 +221,7 @@
         const inner = inners[i];
         const attr = id.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
         return {
-          id, index: i + size, string: s.text, start: s.start, end: s.end, implicit: !!s.implicit,
+          id, index: i, string: s.text, start: s.start, end: s.end, implicit: !!s.implicit,
           para: s.para, clmn: s.clmn, ofld: s.ofld, sctn: s.sctn, chpt: s.chpt,
           leftvw, topvw, widthvw: r3(pxToVw(m.width)), heightvw: r3(pxToVw(m.height)), indentvw,
           html: `<span id="${attr}" class="spel" style="left:${leftvw}vw;top:${topvw}vw;white-space:pre${indentvw ? `;text-indent:${indentvw}vw` : ""}">${inner}</span>`
@@ -536,16 +534,6 @@
           0 -0.6ch 1ch white, 0 0.6ch 1ch white;
       }
 
-      #display {
-        position: relative;
-        background-color: floralwhite;
-        color: darkslategray;
-        cursor: none;
-        overflow: hidden;
-        width: 60vw; /* This value should be calculated manually for notebooks that display */
-        height: 50vw; /* This value should be calculated manually for notebooks that display */
-      }
-
     </style>
   </script>
   <script id="2088" type="text/markdown">
@@ -597,23 +585,6 @@
         throw new Error(`${fontFamily} did not load`);
       return fontFamily;
     })()
-  </script>
-  <script id="1680" type="module">
-    // shuffles an array
-    const shuffle = (src) => {
-      let a = [...src];
-      let i = a.length;
-      while (--i > 0) {
-        let j = ~~(Math.random() * (i + 1)); // ~~ is a common optimization for Math.floor
-        let t = a[j];
-        a[j] = a[i];
-        a[i] = t;
-      }
-      return a;
-    }
-  </script>
-  <script id="3479" type="module" pinned="">
-    const randInt = (maxPlusOne) => (maxPlusOne * Math.random()) | 0
   </script>
   <script id="6001" type="text/markdown">
     ---

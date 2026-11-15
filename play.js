@@ -1,10 +1,13 @@
 import { sleep, msToTime } from "./timing.js";
 import { createDevLog } from "./dev.js";
 import { toggleSpel } from "./display.js";
-import { sumPauses } from "./score.js";
+import { sumPauses, resolveScore } from "./score.js";
 import { shuffle } from "./math.js";
 import { defaults } from "./config.js";
-async function play(config, fieldElem, spels, paras, scores) {
+// options.generators: { name: (context, ...args) => score }, for scores that are generated each time
+// they come round (see resolveScore in score.js, and the README, "Generated scores")
+async function play(config, fieldElem, spels, paras, scores, options = {}) {
+  const generators = options.generators ?? {};
   // `config` is read live (a page can set config.running = false to stop the piece), so it is not
   // copied. The legacy name startingPoint is accepted for startPara, and a config that did not
   // come from createConfig plays as it always did (missing keys take no new defaults)
@@ -64,22 +67,9 @@ async function play(config, fieldElem, spels, paras, scores) {
     const toggleOpts = { effect: settings.effect, durationScale: settings.durationScale ?? settings.slower };
     // TODO - ALLOW MULTIPLE SCORES PER PARA (scoreNum goes to 0 on paraNum change)
     devLog(sNum, paraNum);
-    score = scores[sNum];
+    // a score is an array of items, or the name of one of options.generators (made anew every time)
+    score = resolveScore(scores[sNum], { spels, paras, scores, config, scoreNum: sNum }, generators);
     if (settings.shuffle) score = shuffle(score);
-    // >>> (currently) unused mechanism for generating quasi-random scores on the fly (see 'Uchaf'):
-    // if (typeof scores[sNum] === "string") {
-    //   switch (scores[sNum]) {
-    //     case "schorus":
-    //       // score = schorus();
-    //       break;
-    //     default:
-    //       throw new Error("unknown score-building function name");
-    //   }
-    //   prevScore = score;
-    // } else {
-    //   score = scores[sNum];
-    // }
-    // <<<
     // devLog(scoreSet, "scoreNum", sNum, scoreSet[sNum]); // DEBUG
     devLog("scores:",scores); // DEBUG
     devLog("score:", sNum, "score items:", score.length);

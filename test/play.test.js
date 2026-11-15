@@ -76,3 +76,20 @@ test("play(): durationScale (and its old name slower) scales the time", { skip: 
   assert.ok(slow < normal / 3, `slow ${slow} vs normal ${normal}`);
   assert.ok(Math.abs(oldName - slow) <= 2, `old name ${oldName} vs ${slow}`);
 });
+
+test("play(): a score may name a generator (options.generators), made anew each time it comes round", { skip: !JSDOM }, async () => {
+  const { play } = await import("../play.js");
+  const { field, spels, paras } = setup();
+  const seen = record();
+  let made = 0;
+  const generators = {
+    ba: (ctx, first) => { made++; return [{ id: first, pause: 1 }, { id: "b", pause: 1 }, { id: first, pause: 1 }]; },
+  };
+  const scores = [[{ id: "c", pause: 1 }], { generator: "ba", args: ["a"] }];
+  const config = { ...base, cycleScores: true };
+  play(config, field, spels, paras, scores, { generators });
+  await new Promise((r) => setTimeout(r, 150));
+  config.running = false;
+  assert.deepEqual(seen.slice(0, 5), ["c", "a", "b", "a", "c"]);
+  assert.ok(made >= 1, "the generator was called");
+});
