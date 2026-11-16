@@ -9,9 +9,15 @@
 //  2. PUBLISH it as two CSS custom properties on the field:
 //       --extent-x : offset of the leftmost edge from the field's left edge
 //       --extent-w : width of the extent
+//       --extent-y : offset of the top-most edge from the field's top edge
+//       --extent-h : height of the extent (the tallest ofld's, when the oflds are drawn one over another)
 //  3. LET CSS DO THE CENTRING, so it is responsive with no JS involved:
 //       #field { left: calc((100% - var(--extent-w)) / 2 - var(--extent-x)); }
 //     (100% is the width of the containing block, i.e. the viewport.)
+//     The field has no height of its own (its items are absolutely positioned), so it cannot be centred
+//     vertically by translating it; --extent-y/-h let CSS place its top instead, e.g. the extent's middle
+//     1em above the middle of the viewport:
+//       #field { top: calc(50vh - var(--extent-h, 0px) / 2 - var(--extent-y, 0px) - 1em); }
 //
 // JS re-measures only when something that changes glyph widths happens: fonts
 // finishing loading, or a resize (which matters only if type is not sized in vw).
@@ -24,19 +30,26 @@ function centerField(field, { items = ".spel" } = {}) {
     typeof items === "string" ? field.querySelectorAll(items) : items;
 
   function measure() {
-    const origin = field.getBoundingClientRect().left;
+    const box = field.getBoundingClientRect();
+    const origin = box.left;
     let min = Infinity;
     let max = -Infinity;
+    let top = Infinity;
+    let bottom = -Infinity;
     for (const el of els()) {
       const r = el.getBoundingClientRect();
       if (!r.width) continue; // skip empty or display:none items
       min = Math.min(min, r.left - origin);
       max = Math.max(max, r.right - origin);
+      top = Math.min(top, r.top - box.top);
+      bottom = Math.max(bottom, r.bottom - box.top);
     }
     if (min > max) return; // nothing measurable yet
     const vw = window.innerWidth / 100;
     field.style.setProperty("--extent-x", `${min / vw}vw`);
     field.style.setProperty("--extent-w", `${(max - min) / vw}vw`);
+    field.style.setProperty("--extent-y", `${top / vw}vw`);
+    field.style.setProperty("--extent-h", `${(bottom - top) / vw}vw`);
   }
 
   measure();

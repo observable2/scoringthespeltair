@@ -219,8 +219,13 @@ It works in three steps:
 1. **Measure** the items' extent relative to the field's own left edge, in `vw`. That makes
    it independent of where the field currently is and, when type and spel offsets are sized
    in `vw`, of the viewport width.
-2. **Publish** it as two CSS custom properties on the field: `--extent-x` (leftmost edge's
-   offset from the field's left edge) and `--extent-w` (width of the extent).
+2. **Publish** it as CSS custom properties on the field: `--extent-x` (leftmost edge's
+   offset from the field's left edge), `--extent-w` (width of the extent), and, vertically,
+   `--extent-y` (top-most edge's offset from the field's top) and `--extent-h` (height of the extent:
+   the tallest ofld's, as oflds are drawn one over another). The field has no height of its own (its
+   items are absolutely positioned), so it cannot be centred vertically with a translate; place its
+   top instead, e.g. the extent's middle 1em above the viewport's middle:
+   `top: calc(50vh - var(--extent-h, 1.8em) / 2 - var(--extent-y, 0vw) - 1em);`
 3. **Let CSS centre**, so it stays responsive with no JS involved:
 
 ```css

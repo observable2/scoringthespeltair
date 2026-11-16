@@ -14,7 +14,7 @@
     // engine's version: "@main" follows the branch (cached, so it can lag a push, and is unreleased); a release tag
     // such as "@v0.5.0" pins it. Move to a new release by changing this one tag (the engine's
     // scripts/bump.js does it for a whole project; see the engine's README, "Releases").
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.7.0";
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.7.1";
     const load = async (f) => {
       try { return await import(`${engine}/${f}`); }
       catch (e) { throw new Error(`Could not load the engine file ${f} from ${engine} (offline, or tag missing?): ${e.message}`); }

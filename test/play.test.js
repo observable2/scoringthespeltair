@@ -112,3 +112,22 @@ test("scoreGap: the unit a score ends has its own gap; the score's settings come
   assert.equal(cycleGap({ config }), 40);
   assert.equal(cycleGap({ config, settings: { interCycleMs: 1 } }), 1);
 });
+
+test("centerField(): publishes the extent's left, width, top and height in vw", { skip: !JSDOM }, async () => {
+  const { centerField } = await import("../center.js");
+  const dom = new JSDOM(`<div id="field"><span class="spel" id="a"></span><span class="spel" id="b"></span></div>`);
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  Object.defineProperty(dom.window, "innerWidth", { value: 1000 }); // 1vw = 10px
+  const rect = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left });
+  const d = dom.window.document;
+  d.getElementById("field").getBoundingClientRect = () => rect(100, 200, 100, 200);
+  d.getElementById("a").getBoundingClientRect = () => rect(110, 210, 210, 264); // x 10..110, y 10..64
+  d.getElementById("b").getBoundingClientRect = () => rect(100, 200, 160, 254); // x 0..60,  y 0..54
+  centerField(d.getElementById("field"));
+  const st = d.getElementById("field").style;
+  assert.equal(st.getPropertyValue("--extent-x"), "0vw");
+  assert.equal(st.getPropertyValue("--extent-w"), "11vw");
+  assert.equal(st.getPropertyValue("--extent-y"), "0vw");
+  assert.equal(st.getPropertyValue("--extent-h"), "6.4vw");
+});
