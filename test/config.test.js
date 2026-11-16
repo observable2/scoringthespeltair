@@ -21,6 +21,8 @@ test("defaults come from the schema; the new defaults are the ones we recommend"
   assert.equal(defaults.fontWeight, 300);
   assert.equal(defaults.startPara, 0);
   assert.equal(defaults.fontSizeVw, 3);
+  assert.equal(defaults.interFieldMs, 3000); // declared; play() does not read it yet
+  assert.equal(defaults.interParaMs, 1000); // declared; play() does not read it yet
   assert.equal(Object.isFrozen(defaults), true);
 });
 
@@ -75,12 +77,17 @@ for (const [name, old] of Object.entries(legacy)) {
 const projects = { reading: "reading/nbks/data/config.js", reunion: "reunion/nbks/data/config.js",
   "shi/treading-void": "shi/nbks/data/treading-void/config.js", "shi/river-snow": "shi/nbks/data/river-snow/config.js",
   "shi/maple-bridge": "shi/nbks/data/maple-bridge/config.js", player: "nbks/data/config.js" };
+// deliberate changes since the fixture was captured, with the reason (everything else must be unchanged)
+const changed = {
+  reading: { fontWeight: 300 }, // the weight custom.tmpl shows; defaultConfig's 400 never was
+  "shi/river-snow": { cycleScores: true }, // 1 para, 18 scores: a cycle is the whole work, not one score
+};
 for (const [name, rel] of Object.entries(projects)) {
   const url = new URL(`../../${rel}`, import.meta.url);
   test(`${name}: the config as it is now plays the same as before`, async (t) => {
     if (!existsSync(url)) return t.skip("project folder not present");
     const { config } = await import(url.href);
-    const old = legacy[name];
+    const old = { ...legacy[name], ...changed[name] };
     // every value the project had before is unchanged; the legacy defaultConfig now also lists two keys the
     // engine always read (cycleScores, PRODUCTION), at the values that mean "as before"
     const now = playValues(config), before = playValues(old);

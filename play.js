@@ -1,7 +1,7 @@
 import { sleep, msToTime } from "./timing.js";
 import { createDevLog } from "./dev.js";
 import { toggleSpel } from "./display.js";
-import { sumPauses, resolveScore } from "./score.js";
+import { sumPauses, resolveScore, scoreGap, cycleGap } from "./score.js";
 import { shuffle } from "./math.js";
 import { defaults } from "./config.js";
 // options.generators: { name: (context, ...args) => score }, for scores that are generated each time
@@ -24,6 +24,7 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
     fadePause = 0,
     fadeWords = config.fadeWords,
     idx,
+    lastSettings = {},
     loopCount = 0,
     loopMsg,
     // with config.cycleScores a pass plays every score in turn, so there is one "paragraph" to the cycle
@@ -63,7 +64,8 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
     // (default "visible"); shuffle plays the score's items in a new random order each time
     const settings = config.scoreSettings?.[sNum] ?? {};
     const scale = settings.durationScale ?? settings.slower ?? durationScale;
-    const interScoreMs = settings.interScoreMs ?? config.interScoreMs;
+    const interScoreMs = scoreGap(sNum, { config, settings, paras, spels }); // the unit it ends may have its own gap
+    lastSettings = settings;
     const toggleOpts = { effect: settings.effect, durationScale: settings.durationScale ?? settings.slower };
     // TODO - ALLOW MULTIPLE SCORES PER PARA (scoreNum goes to 0 on paraNum change)
     devLog(sNum, paraNum);
@@ -142,13 +144,13 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
     //
     if (paraNum == startPara) {
       devLog("--- end of cycle --- Duration:", msToTime(Date.now() - cycStart)); // DEBUG
-      await sleep(config.interCycleMs * durationScale); // end of cycle pause
+      await sleep(cycleGap({ config, settings: lastSettings }) * durationScale); // end of cycle pause
       if (config.creditsPauseMs > 0) {
         const bl = document.getElementById("byline"); // optional element
         if (bl) bl.style.opacity = 1;
         await sleep(config.creditsPauseMs * durationScale); // credits pause
         if (bl) bl.style.opacity = 0;
-        await sleep(config.interCycleMs * durationScale); // end of cycle pause
+        await sleep(cycleGap({ config, settings: lastSettings }) * durationScale); // end of cycle pause
       }
     }
     // bump scoreNum

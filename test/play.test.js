@@ -93,3 +93,22 @@ test("play(): a score may name a generator (options.generators), made anew each 
   assert.deepEqual(seen.slice(0, 5), ["c", "a", "b", "a", "c"]);
   assert.ok(made >= 1, "the generator was called");
 });
+
+test("scoreGap: the unit a score ends has its own gap; the score's settings come first; legacy configs keep interScoreMs", async () => {
+  const { scoreGap, cycleGap } = await import("../score.js");
+  const spels = new Map([["a", { ofld: "f1" }], ["b", { ofld: "f1" }], ["c", { ofld: "f2" }]]);
+  const paras = [["a"], ["b"], ["c"]]; // a, b end paras within f1; b also ends f1; c is last
+  const config = { interScoreMs: 5, interParaMs: 10, interFieldMs: 20, interCycleMs: 40 };
+  const gap = (n, c = config, settings) => scoreGap(n, { config: c, settings, paras, spels });
+  assert.equal(gap(0), 10); // ends a para
+  assert.equal(gap(1), 20); // ends a para and a field: the field outranks
+  assert.equal(gap(2), 10); // last para of the cycle: no field boundary (the cycle gap follows)
+  assert.equal(gap(1, config, { interFieldMs: 7 }), 7); // the score overrides the field gap
+  assert.equal(gap(0, config, { interParaMs: 3 }), 3);
+  assert.equal(gap(0, config, { interScoreMs: 2 }), 2); // what the score says beats the config's unit gap
+  assert.equal(gap(1, { interScoreMs: 5 }), 5); // legacy config: no unit gaps
+  assert.equal(scoreGap(0, { config: { ...config, cycleScores: true }, paras, spels }), 5); // a score is not a para
+  assert.equal(scoreGap(0, { config, paras, spels: new Map([["a", {}], ["b", {}], ["c", {}]]) }), 10); // no ofld recorded: no fields
+  assert.equal(cycleGap({ config }), 40);
+  assert.equal(cycleGap({ config, settings: { interCycleMs: 1 } }), 1);
+});

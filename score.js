@@ -62,4 +62,25 @@ function resolveScore(entry, context = {}, generators = {}) {
   return score;
 }
 
-export { sumPauses, pauseItem, toggleItems, scoreFromTimings, resolveScore };
+// The gap after a score, in ms (before durationScale). A score that ends a unit with its own gap
+// uses that gap in place of interScoreMs: the end of a field (interFieldMs) outranks the end of a
+// paragraph (interParaMs). The score's own settings come first, then the config:
+//   settings.interFieldMs ?? settings.interScoreMs ?? config.interFieldMs ?? config.interScoreMs
+// (a config without interFieldMs/interParaMs, such as a legacy one, therefore gives interScoreMs as always).
+// With cycleScores a score is not a paragraph, so no unit ends (only the cycle's end, see cycleGap).
+// A score ends a field if the next paragraph's first spel is in another ofld; spels without an
+// `ofld` (data from before it was recorded) never end one.
+function scoreGap(sNum, { config, settings = {}, paras, spels }) {
+  if (config.cycleScores || !paras?.[sNum]) return settings.interScoreMs ?? config.interScoreMs;
+  const ofldOf = (para) => spels?.get(para?.[0])?.ofld;
+  const here = ofldOf(paras[sNum]), next = ofldOf(paras[sNum + 1]);
+  const endsField = here !== undefined && next !== undefined && here !== next;
+  if (endsField) return settings.interFieldMs ?? settings.interScoreMs ?? config.interFieldMs ?? config.interScoreMs;
+  return settings.interParaMs ?? settings.interScoreMs ?? config.interParaMs ?? config.interScoreMs;
+}
+
+// The gap at the end of a cycle (before durationScale): the last score of the cycle may override it.
+// It comes after the score's own gap, as it always has.
+const cycleGap = ({ config, settings = {} }) => settings.interCycleMs ?? config.interCycleMs;
+
+export { scoreGap, cycleGap, sumPauses, pauseItem, toggleItems, scoreFromTimings, resolveScore };

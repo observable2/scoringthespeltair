@@ -8,6 +8,6 @@ export { mod, shuffle } from "./math.js";
 export { createDevLog } from "./dev.js";
 export { toggleSpel, splitIntoChars } from "./display.js";
 export { centerField } from "./center.js";
-export { sumPauses, pauseItem, toggleItems, scoreFromTimings, resolveScore } from "./score.js";
+export { scoreGap, cycleGap, sumPauses, pauseItem, toggleItems, scoreFromTimings, resolveScore } from "./score.js";
 export { timeToRead, wordTime, whitespaceTime, spelTime, timeToReadDefaults } from "./timetoread.js";
 export { normalizeToken } from "./text.js";

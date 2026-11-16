@@ -154,6 +154,8 @@ needs each score to behave differently. Two config keys, both optional:
     the per-character delay. `0` plays the score at once.
   - `interScoreMs`: replaces `config.interScoreMs`, the gap after this score. It is scaled by the *config's*
     `durationScale`, not the score's.
+  - `interParaMs`, `interFieldMs`, `interCycleMs`: replace the config's for this score, when its end is the end of
+    that unit (see "Gaps between units" below).
   - `effect`: the class toggled on the spel (or its characters), default `"visible"`. Another name (e.g.
     `"glow"`) gives a highlight effect on text that is already visible; the page's CSS defines it, and
     only `"visible"` gets the `charIntervalMs` delay between characters.
@@ -192,6 +194,18 @@ Scores that are plain arrays play exactly as before; `options` can be left out.
   `[{ start, end, word? }]` in **seconds**: each pause is the time from the start of a word to the start of the next
   (the last word: its own length), in whole milliseconds, plus `extraMs` on every pause. `ids` gives the spel ids in order
   (otherwise each timing's `word` is the id) and a mismatch in length throws.
+
+## Gaps between units
+
+The gap after a score is `interScoreMs`, unless the score ends a unit that has a gap of its own, which then
+replaces it: `interParaMs` after a score that ends a paragraph (`cycleScores` off, where score *i* plays `paras[i]`),
+`interFieldMs` after one that ends a field (the next paragraph's first spel is in another `ofld`; the field outranks
+the paragraph). `interCycleMs` still follows the cycle's last score, after its own gap. In every case the score's
+own `scoreSettings` entry comes first (`interFieldMs`, `interParaMs`, `interCycleMs`, or its `interScoreMs`, which
+beats the config's unit gaps), then the config's, so no override means the config's value. A config that lacks
+`interParaMs`/`interFieldMs` (the legacy `defaultConfig`) gives `interScoreMs` throughout, as before; spels without
+a recorded `ofld` never end a field. The scores should not themselves carry the pause for the end of a unit
+(the whitespace after a paragraph's or field's last spel): that is what these gaps are for.
 
 ## Centring on the extent
 

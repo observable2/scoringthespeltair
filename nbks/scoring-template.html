@@ -3,7 +3,7 @@
   <title>Scoring Template</title>
   <script id="1" type="text/markdown" output="frame">
     # Scoring Template
-    #### Version 1.0.0
+    #### Version 1.1.0
     ## Scoring the Spelt Air
     #### *This is the working document, Fall 2026*
     *Scoring the Spelt Air* is a gathering of tools and conventions that will allow you to draft and animate pieces of writing for display on screens and the web. It uses the Observable Notebook platform for drafting and configuration. This notebook itself can be copied (more properly, *forked*) so as to allow you to draft and configure your own pieces of writing. Doing so then allows you to produce and download playable specifications for your writing. A separate suite of JavaScript programs will then *play* the animations you have composed and designed.
@@ -14,7 +14,7 @@
     // engine's version: "@main" follows the branch (cached, so it can lag a push, and is unreleased); a release tag
     // such as "@v0.5.0" pins it. Move to a new release by changing this one tag (the engine's
     // scripts/bump.js does it for a whole project; see the engine's README, "Releases").
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.5.0";
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.7.0";
     const load = async (f) => {
       try { return await import(`${engine}/${f}`); }
       catch (e) { throw new Error(`Could not load the engine file ${f} from ${engine} (offline, or tag missing?): ${e.message}`); }
@@ -43,10 +43,13 @@
       // charIntervalMs: 80,
       // fadeWords: 5,            // n: fade each spel n spels later; 0: show, then remove the paragraph; -1: the scores fade
       // durationScale: 1,        // multiplier on all durations (2: everything lasts twice as long)
-      // interScoreMs: 3000, interCycleMs: 3000, creditsPauseMs: 0,
+      // interScoreMs: 3000,      // the gap after a score ...
+      // interParaMs: 1000,       // ... in place of it, after a score that ends a para (cycleScores off)
+      // interFieldMs: 3000,      // ... and after one that ends a field (an ofld); the field outranks the para
+      // interCycleMs: 3000, creditsPauseMs: 0,
       // startPara: 0,            // paragraph where each cycle starts
       // cycleScores: false,      // true: one cycle plays every score (see scoreSettings)
-      // scoreSettings: [ { durationScale: 0.5, effect: "glow", shuffle: true, interScoreMs: 0 } ],
+      // scoreSettings: [ { durationScale: 0.5, effect: "glow", shuffle: true, interScoreMs: 0 } ], // a score may also override interParaMs, interFieldMs, interCycleMs
     })
   </script>
   <script id="5875" type="module" pinned="">
@@ -410,14 +413,20 @@
   </script>
   <script id="5890" type="module" pinned="">
     // Containment: for every spel (in parsed.spel order) the innermost para, clmn, ofld, sctn and
-    // chpt whose range contains it, or null. Unnamed entities are called kind1, kind2, ... in text
+    // chpt whose range contains it, or null (except para: see below). Unnamed entities are called kind1, kind2, ... in text
     // order (para1, para2, ...), so named and unnamed ones can be mixed.
     const containment = (parsed) => {
       const kinds = ["para", "clmn", "ofld", "sctn", "chpt"];
       const keyed = Object.fromEntries(kinds.map((k) => [k, parsed[k].map((e, i) => ({ ...e, key: e.name ?? `${k}${i + 1}` }))]));
       const innermost = (k, s) => keyed[k].reduce((best, e) =>
         e.start <= s.start && s.end <= e.end && (!best || e.end - e.start <= best.end - best.start) ? e : best, null);
-      return parsed.spel.map((s) => Object.fromEntries(kinds.map((k) => [k, innermost(k, s)?.key ?? null])));
+      return parsed.spel.map((s) => {
+        const c = Object.fromEntries(kinds.map((k) => [k, innermost(k, s)?.key ?? null]));
+        // a spel outside every para is in its ofld's implicit para (an ofld with no para markup is one
+        // para, as a galley with no ofld markup is one ofld, "galley"): a score is always of a para
+        c.para ??= c.ofld ?? "galley";
+        return c;
+      });
     }
   </script>
   <script id="4309" type="text/markdown">
@@ -461,16 +470,17 @@
   <script id="5741" type="module" pinned="">
     // one score (array of { id, pause }) per para, in text order. A spel's pause (ms) is spelTime:
     // the time to read it (the whitespace inside a multi-word spel counts) plus the whitespace that
-    // follows it in the galley, up to the next spel or the end of the text. The galley is
-    // white-space: pre, so its whitespace is respected. The last spel of a para also carries the
-    // end-of-para pause ({ end: true }).
+    // follows it in the galley, up to the next spel (the galley is white-space: pre, so its whitespace
+    // is respected). The last spel of a para carries no such gap and no end-of-para pause: what follows
+    // the end of a para or field is the engine's to time, with config.interParaMs and interFieldMs
+    // (a score may override them: see scoreSettings), not the score's.
     const readOptions = { whitespace: "respect" }
     const scores = paraList.map((ids) =>
       ids.map((id, i) => {
         const spel = spels.get(id);
         const following = Array.from(spels.values())[spel.index + 1];
-        const gap = layout.text.slice(spel.end, following ? following.start : undefined);
-        return { id, pause: spelTime(spel.string, gap, 1, { ...readOptions, end: i === ids.length - 1 }) };
+        const gap = i === ids.length - 1 ? "" : layout.text.slice(spel.end, following ? following.start : undefined);
+        return { id, pause: spelTime(spel.string, gap, 1, readOptions) };
       }))
   </script>
   <script id="5860" type="text/html">
@@ -662,8 +672,9 @@
     - **Scores.** `scores` is an array of scores, one per para; a score is an array of `{ id, pause }`: show the spel `id`, wait `pause` ms (times `durationScale`), go on. The default scores above are linear (each spel in text order, `pause` from `spelTime`); edit them, or write your own, to compose the timing. Two special items: `{ id: "PAUSE", pause }` waits without showing anything, and `{ id: "AUTOFADE", pause: n }` sets `fadeWords` to `n` from here on.
     - **Fading.** `fadeWords` > 0: each spel is faded again `fadeWords` spels after it (a moving window); `0`: the paragraph is shown, then removed as a whole; `-1`: the scores do their own fading (they toggle spels on and off); `paraFadeWords` gives one value per paragraph.
     - **Characters.** With `charFades`, each spel is revealed one character at a time, `charIntervalMs` apart (the engine's `splitIntoChars` prepares the field).
-    - **Several scores for one poem.** `cycleScores: true` plays every score in order in a single cycle. `scoreSettings[n]` then sets, for score `n`: `durationScale`, `interScoreMs` (the gap after it), `effect` (the class toggled: `"visible"` by default, or another such as `"glow"`, which the page's CSS defines: see `.glow` above) and `shuffle` (play the items in a new random order each time). See `shi/nbks/data/maple-bridge/config.js` for ten scores in use.
-    - **Cycle.** `interScoreMs` after each score; `interCycleMs` before the first and at the end of each cycle; `creditsPauseMs` shows the element `#byline` at the end of each cycle.
+    - **Several scores for one poem.** `cycleScores: true` plays every score in order in a single cycle. `scoreSettings[n]` then sets, for score `n`: `durationScale`, `interScoreMs` (the gap after it), `interParaMs`, `interFieldMs`, `interCycleMs` (the gaps at the end of a para, a field, the cycle, if the score ends one), `effect` (the class toggled: `"visible"` by default, or another such as `"glow"`, which the page's CSS defines: see `.glow` above) and `shuffle` (play the items in a new random order each time). See `shi/nbks/data/maple-bridge/config.js` for ten scores in use.
+    - **Cycle.** `interCycleMs` before the first score and at the end of each cycle, after the last score's own gap; `creditsPauseMs` shows the element `#byline` at the end of each cycle.
+    - **Gaps between units.** The gap after a score is `interScoreMs`, unless the score ends a unit that has a gap of its own, which replaces it: `interParaMs` after a score that ends a para (`cycleScores` off, so score *i* plays para *i*), `interFieldMs` after one that ends a field (the next para starts in another `ofld`; the field outranks the para). A score's own `scoreSettings` entry (`interFieldMs`, `interParaMs`, `interCycleMs` or its `interScoreMs`) comes first, then the config's; with no override the config's value is used. So the scores do not carry the pause for the end of a para or field (the whitespace after its last spel): the gaps do. A spel outside every para is in its ofld's implicit para, so a poem of one line to the ofld needs no `para` markup.
   </script>
   <script id="5882" type="text/markdown">
     ### Markup
@@ -675,7 +686,7 @@
     - **Spels:** an explicit spel is the text between `<!--@ spel -->` and `<!--@ /spel -->`, whitespace kept, rich markup allowed. Outside explicit spels, each whitespace-separated run is an implicit spel.
     - **Errors:** unknown kinds, unmatched closes and unclosed entities throw.
     - **Names:** an unnamed entity is `kind1`, `kind2`, … in text order (`para1`, …).
-    - **Layout:** a spel belongs to its innermost para, clmn, ofld, sctn, chpt. In `clmn:right` it is offset by `config.clmnRight`; `clmn:left`, unnamed, or none adds 0. In each `ofld`, 0 is the top of its top-most spel box, and each `clmn` starts again at 0 (it is lifted to the top of its ofld). With no ofld the galley is the one ofld (called `galley`); spels outside the marked oflds also fall into it.
+    - **Layout:** a spel belongs to its innermost para, clmn, ofld, sctn, chpt (outside every para, to its ofld's implicit para). In `clmn:right` it is offset by `config.clmnRight`; `clmn:left`, unnamed, or none adds 0. In each `ofld`, 0 is the top of its top-most spel box, and each `clmn` starts again at 0 (it is lifted to the top of its ofld). With no ofld the galley is the one ofld (called `galley`); spels outside the marked oflds also fall into it.
 
     `parseMarkup(root)` returns `{text, spel, para, clmn, ofld, sctn, chpt}`: `text` is the galley's text without markers, each entity is `{kind, name, start, end, text}` with offsets into `text`. The cell below parses a small sample.
   </script>

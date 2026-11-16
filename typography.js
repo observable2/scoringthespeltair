@@ -8,8 +8,13 @@ import { defaults } from "./config.js";
 // custom properties (--spel-fade, --char-fade, --field-fade) for the page's transitions:
 //   .spel { transition: opacity var(--spel-fade, 1.5s) ease-in-out }
 // A key missing from `config` takes the engine's default.
+//
+// The family is listed twice, "Name Variable" first: fontsource's variable fonts (what the pages'
+// custom.tmpl bundles) register as "Name Variable", while the notebooks load plain "Name" from Google
+// Fonts. Naming only "Name" would show a font the viewer happens to have installed, never the bundled one.
 function typeCss(config, selector = ".set") {
   const c = { ...defaults, ...config };
+  const family = /\sVariable$/.test(c.fontFamily) ? `'${c.fontFamily}'` : `'${c.fontFamily} Variable', '${c.fontFamily}'`;
   const opsz = c.opsz === null || c.opsz === undefined ? "" : `\n  font-variation-settings: "opsz" ${c.opsz};`;
   return `:root {
   --spel-fade: ${c.spelFadeMs}ms;
@@ -17,7 +22,7 @@ function typeCss(config, selector = ".set") {
   --field-fade: ${c.fieldFadeMs}ms;
 }
 ${selector} {
-  font-family: '${c.fontFamily}', serif;
+  font-family: ${family}, serif;
   font-size: ${c.fontSizeVw}vw;
   font-weight: ${c.fontWeight};
   line-height: ${c.lineHeight};
