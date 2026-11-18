@@ -195,6 +195,21 @@ Scores that are plain arrays play exactly as before; `options` can be left out.
   (the last word: its own length), in whole milliseconds, plus `extraMs` on every pause. `ids` gives the spel ids in order
   (otherwise each timing's `word` is the id) and a mismatch in length throws.
 
+## When spels fade out (`fadeWords` > 0)
+
+A spel fades `fadeWords` spels after it appears: timed from the moment it appears, by the **reading time** of
+itself and of the `fadeWords` spels after it (`readingTimes` and `fadeDelay` in `score.js`). A score pause can carry
+the whitespace after a line's last spel (a line break ...); that end-of-unit time delays what is faded **in** next,
+never what is faded **out**. So:
+
+- a spel in the middle of a line (the next item is a spel on the same line) reads in its **pause**, as scored or recorded;
+- a spel that ends a line or the score reads in its `spelTime` estimate (no gap), scaled by the score's **pace**: the
+  sum of its mid-line pauses over the sum of their estimates. A linear score has pace 1; one timed from a recording has the
+  recording's pace. Spels without a recorded position (`topvw`) count as line ends;
+- `PAUSE` and `AUTOFADE` items add nothing.
+
+The wait after a score's last spel still lasts until the last fade-out, then `interScoreMs`.
+
 ## Gaps between units
 
 The gap after a score is `interScoreMs`, unless the score ends a unit that has a gap of its own, which then

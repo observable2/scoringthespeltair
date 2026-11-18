@@ -1,7 +1,7 @@
 import { sleep, msToTime } from "./timing.js";
 import { createDevLog } from "./dev.js";
 import { toggleSpel } from "./display.js";
-import { sumPauses, resolveScore, scoreGap, cycleGap } from "./score.js";
+import { sumPauses, fadeDelay, readingTimes, resolveScore, scoreGap, cycleGap } from "./score.js";
 import { shuffle } from "./math.js";
 import { defaults } from "./config.js";
 // options.generators: { name: (context, ...args) => score }, for scores that are generated each time
@@ -21,6 +21,7 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
   if (legacyKeys.length) console.warn(`scoringthespeltair: config keys ${legacyKeys.join(", ")} are ignored; times are now milliseconds with an Ms suffix (e.g. interCycleMs)`);
   devLog("entered play()", scores);
   let cycStart,
+    fadeEnd = 0, // when (Date.now) the last scheduled fade-out of the score is due
     fadePause = 0,
     fadeWords = config.fadeWords,
     idx,
@@ -78,6 +79,7 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
     //
     // This is where we inner-loop through each item in the current score and
     // display the string of its spel for the length of time in its pause property.
+    const readTimes = readingTimes(score, spels); // for the fade-outs
     for (idx = 0; idx < score.length; idx++) {
       if (!config.running) break;
       let spelId = score[idx].id;
@@ -110,23 +112,22 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
         elem = document.getElementById(spelId);
         await toggleSpel(elem, config, toggleOpts);
         // DEBUG devLog(elem.innerHTML);
+        // The fade-out is timed from now, by the reading time of this spel and the next fadeWords
+        // (fadeDelay), not by their score pauses where those carry end-of-unit whitespace (line
+        // breaks ...): that delays what is faded IN next, never what is faded OUT.
+        if (fadeWords > 0) fadePause = fadeDelay(readTimes, idx, fadeWords);
+        if (fadePause > 0) {
+          fadeEnd = Math.max(fadeEnd, Date.now() + fadePause * scale);
+          sleep(fadePause * scale).then(() => toggleSpel(elem, config, toggleOpts));
+        }
       }
       // pause for both actual spels and PAUSE items
       await sleep(score[idx].pause * scale); // pauses usually taken from the temporal data
-      if (spelId === "PAUSE") continue;
-      // not a pause item, so check for fadeWords
-      if (fadeWords > 0) {
-        fadePause = sumPauses(score, idx, fadeWords, { skipPauses: true });
-      }
-      if (fadePause > 0) {
-        // let ridx = mod(idx - fadeWords, score.length);
-        // fadePause += score[idx].pause - score[ridx].pause;
-        sleep(fadePause * scale).then(() => toggleSpel(elem, config, toggleOpts));
-      }
     } // end of loop thru current score
-    // DEBUG devLog("fadePause", fadePause, "interScr", interScoreMs);
-    // pause between scores: the fade-out is scored (durationScale, the score's), the gap is not
-    await sleep(fadePause * scale + interScoreMs * durationScale);
+    // pause between scores: wait for the last fade-out (scored: durationScale, the score's), then the
+    // gap (not scored). The fade-outs run on their own clock, so they may already be done.
+    await sleep(Math.max(0, fadeEnd - Date.now()) + interScoreMs * durationScale);
+    fadeEnd = 0;
     // >>> remove old paragraph:
     if (config.fadeWords === 0) {
       devLog(">>> remove old paragraph");

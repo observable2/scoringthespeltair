@@ -1,4 +1,5 @@
 import { mod } from "./math.js";
+import { spelTime } from "./timetoread.js";
 
 // sums the pauses of the n score items following idx (wrapping around the score);
 // with skipPauses, "PAUSE" items contribute nothing
@@ -10,6 +11,49 @@ function sumPauses(score, idx, n, { skipPauses = false } = {}) {
   }
   return total;
 }
+
+// Reading times for fading out: for each item of a score, how long it takes to read, WITHOUT the
+// end-of-unit time a score pause may carry (the whitespace after a line's last spel: a line break ...).
+// Those pauses belong before the next unit is faded IN, not to when words fade OUT.
+//  - A spel in the middle of a line (the next item is a spel on the same line, by `topvw`, para,
+//    clmn and ofld) has no such whitespace: its pause IS its reading time, as scored or recorded.
+//  - A spel that ends a line (or the score, or has no recorded position) is estimated (`spelTime` of
+//    its string, no gap) and scaled by this score's pace: the sum of its mid-line pauses over the sum
+//    of their estimates. A linear score (pauses from spelTime) has pace 1; a score timed from a
+//    recording has the pace of that recording.
+//  - "PAUSE" and "AUTOFADE" items are not spels and read in 0. A spel not in `spels` reads in its pause.
+const fadeReadOptions = { whitespace: "respect" };
+function readingTimes(score, spels) {
+  const isSpel = (item) => item.id !== "PAUSE" && item.id !== "AUTOFADE";
+  const info = (item) => (isSpel(item) ? spels?.get(item.id) : undefined);
+  const estimate = (spel) => spelTime(spel.string, "", 1, fadeReadOptions);
+  const sameLine = (a, b) => a && b && a.topvw !== undefined && b.topvw !== undefined
+    && a.para === b.para && a.clmn === b.clmn && a.ofld === b.ofld
+    && Math.abs(a.topvw - b.topvw) < 0.5 * (a.heightvw ?? 1);
+  let recorded = 0, estimated = 0;
+  const midLine = score.map((item, i) => {
+    const here = info(item);
+    const next = score[i + 1];
+    const mid = here?.string !== undefined && item.pause > 0 && next && isSpel(next) && sameLine(here, info(next));
+    if (mid) { recorded += item.pause; estimated += estimate(here); }
+    return mid;
+  });
+  const pace = estimated > 0 ? recorded / estimated : 1;
+  return score.map((item, i) => {
+    if (!isSpel(item)) return 0;
+    const here = info(item);
+    if (here?.string === undefined) return item.pause;
+    return midLine[i] ? item.pause : Math.round(estimate(here) * pace);
+  });
+}
+
+// How long after a spel appears it fades out, when it fades n spels later (ms, before durationScale):
+// the reading times (see readingTimes) of the spel and the n after it, wrapping around the score.
+const fadeDelay = (times, idx, n) => {
+  let total = times[idx];
+  for (let i = 0; i < n; ++i) total += times[mod(idx + i + 1, times.length)];
+  return total;
+};
 
 // A score item that shows nothing and waits `ms`: { id: "PAUSE", pause: ms }. A whole score may be
 // one such item (a breath between two scores).
@@ -83,4 +127,4 @@ function scoreGap(sNum, { config, settings = {}, paras, spels }) {
 // It comes after the score's own gap, as it always has.
 const cycleGap = ({ config, settings = {} }) => settings.interCycleMs ?? config.interCycleMs;
 
-export { scoreGap, cycleGap, sumPauses, pauseItem, toggleItems, scoreFromTimings, resolveScore };
+export { scoreGap, cycleGap, sumPauses, fadeDelay, readingTimes, pauseItem, toggleItems, scoreFromTimings, resolveScore };

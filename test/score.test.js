@@ -49,3 +49,22 @@ test("resolveScore: unknown generators and bad results are named", () => {
   assert.throws(() => resolveScore(42, { scoreNum: 1 }), /neither an array of items nor a generator name/);
   assert.throws(() => resolveScore("g", {}, { g: () => "not a score" }), /must return an array/);
 });
+
+test("readingTimes / fadeDelay: fade-outs run on reading time, not on the line breaks in pauses, at the score's own pace", async () => {
+  const { readingTimes, fadeDelay } = await import("../score.js");
+  const { spelTime } = await import("../timetoread.js");
+  const read = spelTime("aa", "", 1, { whitespace: "respect" });
+  const at = (id, topvw) => [id, { string: id + id, para: "p", clmn: "l", ofld: "o", topvw, heightvw: 5 }];
+  const spels = new Map([at("a", 0), at("b", 0), at("c", 5), at("d", 5)]); // a b / c d: b ends line 1, d ends the score
+  // linear score: b's pause carries a 1000 ms line break
+  const linear = [{ id: "a", pause: read }, { id: "b", pause: read + 1000 }, { id: "c", pause: read }, { id: "d", pause: read }];
+  assert.deepEqual(readingTimes(linear, spels), [read, read, read, read]);
+  assert.equal(fadeDelay(readingTimes(linear, spels), 0, 2), 3 * read);
+  // recorded at half the estimated pace: mid-line pauses are used as they are, line ends are scaled
+  const slow = [{ id: "a", pause: 2 * read }, { id: "b", pause: 3000 }, { id: "c", pause: 2 * read }, { id: "d", pause: 9999 }];
+  assert.deepEqual(readingTimes(slow, spels), [2 * read, 2 * read, 2 * read, 2 * read]);
+  const withPause = [linear[0], pauseItem(500), ...linear.slice(1)];
+  assert.equal(readingTimes(withPause, spels)[1], 0);
+  assert.equal(fadeDelay(readingTimes(linear, spels), 3, 1), 2 * read); // wraps
+  assert.deepEqual(readingTimes([{ id: "x", pause: 70 }], spels), [70]); // unknown spel: its pause
+});
