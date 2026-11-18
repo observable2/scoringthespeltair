@@ -1,6 +1,6 @@
 <!doctype html>
 <notebook theme="midnight">
-  <title>Untitled</title>
+  <title>Reunion</title>
   <script id="2" type="text/markdown" hidden="">
     # Reunion
   </script>
@@ -10,6 +10,17 @@
     <div id="byline">
       <!-- <span id="bytext"><cite>Reading</cite> by John Cayley</span> -->
     </div>
+  </script>
+  <script id="5" type="module">
+    // THE ENGINE, from GitHub through jsDelivr: the one place this page names its version (the same
+    // tag as scoring-template.html; a new release is a change to this one line).
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.7.1";
+    const { createConfig, typeCss, mount, play } = await import(`${engine}/index.js`);
+
+    // THE CONFIG, as exported by the notebook (config.json): the engine's defaults plus the piece's
+    // settings, so the notebook and this player cannot disagree. Player-only overrides go in the
+    // second argument, e.g. { startPara: 2, running: false } while debugging.
+    const config = createConfig(await FileAttachment("./data/config.json").json(), {});
   </script>
   <script id="4" type="text/html">
     <style>
@@ -23,23 +34,20 @@
         cursor: none;
       }
 
+      /* the type (family, size, weight, line height, ligatures, optical size) and the fade times
+         (--spel-fade, --char-fade, --field-fade) come from config.json, exported by
+         scoring-template.html, through the engine's typeCss: the type the spels were measured in.
+         Do not set them again here. */
+      ${typeCss(config, "#field")}
+
       #field {
         position: absolute;
         top: 7vw;
         /* centred on the extent of its spels; see centerField in scoringthespeltair */
         left: calc((100% - var(--extent-w, 0vw)) / 2 - var(--extent-x, 0vw));
-        font-family: var(--serif);
-        font-size: 3vw; /* the size the spel data was measured at (.set in scoring-template.html): vw positions and line pitch depend on it */
-        font-variant-ligatures: no-common-ligatures;
-        /* font-weight comes from config.fontWeight (set in the module cell below). The optical-size
-           axis is fixed, not left to follow the font size: the spel data was measured without it, and
-           with it the type is narrower and varies with the window width. (Measured: 21.35vw against
-           the data's 21.363vw for "Thomas’  Stone", at 1200px and 800px.) */
-        font-variation-settings: "opsz" 14;
-        line-height: 1.8;
         user-select: none;
         -webkit-user-select: none; /* Safari */
-        transition: opacity 2.5s ease-in-out;
+        transition: opacity var(--field-fade) ease-in-out;
       }
 
       #byline {
@@ -69,7 +77,7 @@
 
       .char {
         opacity: 0;
-        transition: all 1.3s ease-in-out;
+        transition: all var(--char-fade) ease-in-out;
       }
 
       .char.visible {
@@ -79,7 +87,7 @@
       .spel {
         position: absolute;
         opacity: 0;
-        transition: all 1.5s ease-in-out;
+        transition: all var(--spel-fade) ease-in-out;
       }
 
       .spel.visible {
@@ -88,60 +96,25 @@
     </style>
   </script>
   <script id="3" type="module">
-    console.log("--- Reading, Sept 2026 ---");
-
     // Wait for the DOM to be ready before querying elements
     await new Promise(resolve => requestAnimationFrame(resolve));
 
     const byline = document.getElementById("byline");
-    if (byline) {
-      if (window != window.top) {
-        console.log("This page is in an iframe");
-        byline.style.opacity = 0; // change to 1 if you want byline to show in iFrame
-      } else {
-        console.log("This window is top");
-        byline.style.opacity = 0;
-      }
-    } else {
-      console.log("WARNING: #byline element not found");
-    }
+    if (byline) byline.style.opacity = 0; // change to 1 to show the byline
+    else console.log("WARNING: #byline element not found");
 
-    const { config } = await import("./data/config.js");
-    // --- DEBUG congiguration
-    // config.startPara = 2; // DEBUG
-    // config.running = false; // DEBUG
-    var fieldElem = document.getElementById("field");
-    fieldElem.style.fontWeight = config.fontWeight; // the weight the data was measured at (set here, not by the engine)
-    var paraNum, paras, scores, spels;
-    // --- preprocessing ---
-    console.log("--- preprocessing begins ---"); // DEBUG
-    spels = new Map(await FileAttachment("./data/spels.json").json());
-    fieldElem.innerHTML = Array.from(spels.values())
-      .map((spel) => spel.html)
-      .join("");
-    paras = await FileAttachment("./data/paras.json").json();
-    scores = await FileAttachment("./data/scores.json").json();
-    if (config.charFades) {
-      const spels = document.querySelectorAll('.spel');
-      for (const spel of spels) {
-        let str = spel.textContent;
-        let strlen = str.length;
-        str = [...str].map(char => `<span class="char">${char}</span>`).join('');
-        spel.innerHTML = str;
-        // DEBUG console.log(str);
-        spel.style.opacity = 1;
-      }
-    }
-    // console.log(paras[config.startPara]); // DEBUG , paras, scores
-    console.log("--- preprocessing done ---"); // DEBUG
-    // the engine comes from GitHub through jsDelivr
-    // (see the note in scoring-template.html)
-    const { centerField } = await import("https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.5.0/center.js");
-    centerField(fieldElem);
-    // --- animation, based on the play() method in
-    // observablehq.com/@shadoof/sounding ---
-    const { play } = await import("https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.5.0/play.js");
-    // console.log("scores:", scores); // DEBUG
+    const fieldElem = document.getElementById("field");
+
+    // THE DATA exported by the notebook (see "Export" in scoring-template.html), from nbks/data/
+    const spels = new Map(await FileAttachment("./data/spels.json").json()); // id -> spel
+    const paras = await FileAttachment("./data/paras.json").json();   // spel ids, by paragraph
+    const scores = await FileAttachment("./data/scores-timeToRead.json").json(); // [{ id, pause }, ...] by paragraph
+    const measuredWith = await FileAttachment("./data/measured.json").json(); // the type the spels were measured at
+
+    // Puts the spels in the field (split into characters if config.charFades), centres the field, and
+    // warns in the console if the type here differs from the type the spels were measured in.
+    mount(config, fieldElem, { spels, measuredWith });
+
     if (config.running) play(config, fieldElem, spels, paras, scores);
   </script>
 </notebook>
