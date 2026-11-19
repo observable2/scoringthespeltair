@@ -1,14 +1,19 @@
-// Reduces text that may contain HTML and/or Markdown to plain text that can be measured for
-// reading time. Dependency-free, and a pragmatic subset of both syntaxes, not full parsers.
-// Internal to the library (used by timetoread.js; not a public subpath export).
+// Reduces text that may contain HTML and/or Markdown to plain text that
+// can be measured for reading time. Dependency-free, and a pragmatic
+// subset of both syntaxes, not full parsers. Internal to the library
+// (used by timetoread.js; not a public subpath export).
 //
-// The result keeps whitespace as private-use marker characters so the next stage can tell
-// the kinds apart. Written as \u escapes so an editor can't silently change them.
-const BRK = "\ue000"; // structural line break: block tag, <br>, Markdown paragraph/heading/item/hard break
-const RSP = "\ue001"; // space character that is always respected (&nbsp;, <pre>, code fence, ...)
-const RTAB = "\ue002"; // tab character that is respected
-const RNL = "\ue003"; // newline that is respected
-// an ordinary (collapsible) space stays a plain " "
+// The result keeps whitespace as private-use marker characters so the
+// next stage can tell the kinds apart. Written as \u escapes so an
+// editor can't silently change them. An ordinary (collapsible) space
+// stays a plain " ".
+// structural line break: block tag, <br>, Markdown paragraph, heading,
+// item, hard break
+const BRK = "\ue000";
+// a space that is always respected (&nbsp;, <pre>, code fence, ...)
+const RSP = "\ue001";
+const RTAB = "\ue002"; // a tab that is respected
+const RNL = "\ue003"; // a newline that is respected
 
 const ENTITIES = {
   nbsp: "\u00a0", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
@@ -18,7 +23,8 @@ const ENTITIES = {
 
 function decodeEntities(s) {
   return s.replace(/&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|([A-Za-z][A-Za-z0-9]*));/g, (whole, dec, hex, name) => {
-    if (name) return Object.hasOwn(ENTITIES, name) ? ENTITIES[name] : whole; // unknown names are left as they are
+    // unknown names are left as they are
+    if (name) return Object.hasOwn(ENTITIES, name) ? ENTITIES[name] : whole;
     const cp = dec ? parseInt(dec, 10) : parseInt(hex, 16);
     return cp > 0 && cp <= 0x10ffff && !(cp >= 0xd800 && cp <= 0xdfff) ? String.fromCodePoint(cp) : "";
   });
@@ -41,8 +47,10 @@ function htmlAfter(s) {
   return decodeEntities(
     s
       .replace(BLOCK_TAGS, BRK)
-      .replace(/<\/?(?:td|th)\b[^>]*>/gi, " ") // cells are separated, but are not line breaks
-      .replace(/<\/?[A-Za-z][^>]*>/g, "") // any other tag: inline, adds nothing
+      // cells are separated, but are not line breaks
+      .replace(/<\/?(?:td|th)\b[^>]*>/gi, " ")
+      // any other tag: inline, adds nothing
+      .replace(/<\/?[A-Za-z][^>]*>/g, "")
   );
 }
 
@@ -50,21 +58,25 @@ const LINK_TARGET = String.raw`\((?:[^()\s]|\([^()]*\))*(?:\s+(?:"[^"]*"|'[^']*'
 
 function markdown(s) {
   const lines = s.split("\n");
-  const pieces = []; // [text of the line, what follows it]; no separator after the last line
+  // [text of the line, what follows it]; no separator after the last
+  // line
+  const pieces = [];
   let fence = null;
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
+    // inside a code fence, whitespace is kept
     if (fence) {
       const close = line.match(/^\s{0,3}(`{3,}|~{3,})\s*$/);
       if (close && close[1][0] === fence[0] && close[1].length >= fence.length) {
         fence = null;
         pieces.push([BRK, "\n"]);
-      } else pieces.push([respect(line), RNL]); // code keeps its whitespace
+      } else pieces.push([respect(line), RNL]);
       continue;
     }
     const open = line.match(/^\s{0,3}(`{3,}|~{3,})/);
     if (open) { fence = open[1]; pieces.push([BRK, "\n"]); continue; }
-    // a blank line is a paragraph break only between two newlines; elsewhere it is just whitespace
+    // a blank line is a paragraph break only between two newlines;
+    // elsewhere it is just whitespace
     if (/^\s*$/.test(line)) { pieces.push([i > 0 && i < lines.length - 1 ? BRK : "", "\n"]); continue; }
     // rule, setext underline, table divider: a break, nothing to read
     if (
@@ -72,9 +84,11 @@ function markdown(s) {
       /^\s{0,3}(=+|-+)\s*$/.test(line) ||
       (/^[\s|:-]+$/.test(line) && line.includes("|") && line.includes("-"))
     ) { pieces.push([BRK, "\n"]); continue; }
-    if (/^\s{0,3}\[[^\]\n]+\]:\s*\S/.test(line)) { pieces.push(["", "\n"]); continue; } // link reference definition
+    // link reference definition
+    if (/^\s{0,3}\[[^\]\n]+\]:\s*\S/.test(line)) { pieces.push(["", "\n"]); continue; }
     let before = "", after = "";
-    while (/^\s{0,3}>/.test(line)) line = line.replace(/^\s{0,3}>\s?/, ""); // block quote
+    // block quote
+    while (/^\s{0,3}>/.test(line)) line = line.replace(/^\s{0,3}>\s?/, "");
     const heading = line.match(/^\s{0,3}#{1,6}(?:\s+|$)/);
     if (heading) {
       line = line.slice(heading[0].length).replace(/\s+#+\s*$/, "");
@@ -87,10 +101,13 @@ function markdown(s) {
       line = line.replace(/( {2,}|\\)$/, ""); // hard line break
       after += BRK;
     }
-    if ((line.match(/\|/g) || []).length >= 2 || /^\s*\|/.test(line)) line = line.replace(/\|/g, " "); // table row
+    // table row
+    if ((line.match(/\|/g) || []).length >= 2 || /^\s*\|/.test(line)) line = line.replace(/\|/g, " ");
     line = line
-      .replace(new RegExp(String.raw`!\[[^\]]*\]` + LINK_TARGET, "g"), "") // image: nothing to read
-      .replace(new RegExp(String.raw`\[([^\]]*)\]` + LINK_TARGET, "g"), "$1") // link: keep the text, not the target
+      // image: nothing to read
+      .replace(new RegExp(String.raw`!\[[^\]]*\]` + LINK_TARGET, "g"), "")
+      // link: keep the text, not the target
+      .replace(new RegExp(String.raw`\[([^\]]*)\]` + LINK_TARGET, "g"), "$1")
       .replace(/\[([^\]]+)\]\[[^\]]*\]/g, "$1") // reference link
       .replace(/\[\^[^\]]+\]/g, "") // footnote marker
       .replace(/<https?:\/\/[^>\s]+>/g, "") // autolink
@@ -101,9 +118,11 @@ function markdown(s) {
 }
 
 // text -> plain text with whitespace kept as markers
-//   html, markdown: strip that kind of markup (both on by default in timetoread.js)
-//   whitespace: "collapse" (default DOM/Markdown rendering: runs of space, tab, newline are one
-//               ordinary space) or "respect" (as with CSS white-space: pre; every one counts)
+//   html, markdown  strip that kind of markup (both on by default)
+//   whitespace      "collapse" (default; as the DOM and Markdown
+//                   render: a run of space, tab, newline is one
+//                   ordinary space) or "respect" (as with CSS
+//                   white-space: pre; every one counts)
 function flatten(text, { html = true, markdown: md = true, whitespace = "collapse" } = {}) {
   let s = String(text ?? "").replace(/[\ue000-\ue003]/g, "").replace(/\r\n?/g, "\n");
   if (html) s = htmlBefore(s);

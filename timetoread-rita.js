@@ -1,10 +1,12 @@
-// RiTa-based reading-time estimate. Imports "rita", so it is NOT re-exported from index.js:
-// import it directly from "scoringthespeltair/timetoread-rita.js"
+// RiTa-based reading-time estimate. Imports "rita", so it is NOT
+// re-exported from index.js: import it directly from
+// "scoringthespeltair/timetoread-rita.js"
 import { RiTa } from "rita";
 import { normalizeToken } from "./text.js";
 
-// Tuning constants, frozen so no importer can change the shared defaults; projects
-// override per call or via createTimeToReadRita(). All times are milliseconds (`base`, `punctPause`).
+// Tuning constants, frozen so no importer can change the shared
+// defaults; projects override per call or via createTimeToReadRita().
+// All times are milliseconds (`base`, `punctPause`).
 const defaults = Object.freeze({
   base: 33,
   timeFactor: 1, // divisor applied to the whole result
@@ -14,7 +16,8 @@ const defaults = Object.freeze({
   maxLengthUnits: 3, // extra `base` units for token length, capped here
   syllableWeight: 2, // multiplier on `base` per syllable
   whitespaceWeight: 2, // multiplier on `base` per unit of whitespace
-  longTokenLength: 4, // tokens longer than this get vowelWeight per vowel, not once
+  // tokens longer than this get vowelWeight per vowel, not once
+  longTokenLength: 4,
   normalize: normalizeToken // markdown-aware cleanup, see text.js
 });
 
@@ -27,7 +30,8 @@ function timeToReadRita(rawToken, lengthOfWhiteSpace = 1, factor, overrides = {}
   const token = o.normalize(rawToken);
   const { base } = o;
   let ttr = base;
-  // add up to maxLengthUnits extra base units for each unit of token length
+  // add up to maxLengthUnits extra base units for each unit of token
+  // length
   ttr += base * Math.min(Math.max(token.length - 1, 0), o.maxLengthUnits);
   const syls = RiTa.syllables(token).split("/");
   const vowels = token.match(/[aeiouy]/gi);

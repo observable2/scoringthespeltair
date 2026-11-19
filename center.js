@@ -1,29 +1,35 @@
-// "Centering on the longest line", generalised: centre the field so that the
-// horizontal extent of its items (leftmost left edge to rightmost right edge)
-// is centred in the viewport, leaving the items' own relative positions alone.
+// Centres the field so that the horizontal extent of its items
+// (leftmost left edge to rightmost right edge) is centred in the
+// viewport, leaving the items' own relative positions alone.
 //
 // How it works:
-//  1. MEASURE the items' extent relative to the field's own left edge. The
-//     extent is expressed in vw, so it is independent of the field's current
+//  1. MEASURE the items' extent relative to the field's own left edge.
+//     The extent is in vw, so it is independent of the field's current
 //     left and, because the type is sized in vw, of the viewport width.
-//  2. PUBLISH it as two CSS custom properties on the field:
-//       --extent-x : offset of the leftmost edge from the field's left edge
+//  2. PUBLISH it as CSS custom properties on the field:
+//       --extent-x : offset of the leftmost edge from the field's left
 //       --extent-w : width of the extent
-//       --extent-y : offset of the top-most edge from the field's top edge
-//       --extent-h : height of the extent (the tallest ofld's, when the oflds are drawn one over another)
+//       --extent-y : offset of the top-most edge from the field's top
+//       --extent-h : height of the extent (the tallest ofld's, when the
+//                    oflds are drawn one over another)
 //  3. LET CSS DO THE CENTRING, so it is responsive with no JS involved:
-//       #field { left: calc((100% - var(--extent-w)) / 2 - var(--extent-x)); }
+//       #field { left: calc((100% - var(--extent-w)) / 2
+//                           - var(--extent-x)); }
 //     (100% is the width of the containing block, i.e. the viewport.)
-//     The field has no height of its own (its items are absolutely positioned), so it cannot be centred
-//     vertically by translating it; --extent-y/-h let CSS place its top instead, e.g. the extent's middle
-//     1em above the middle of the viewport:
-//       #field { top: calc(50vh - var(--extent-h, 0px) / 2 - var(--extent-y, 0px) - 1em); }
+//     The field has no height of its own (its items are absolutely
+//     positioned), so it cannot be centred vertically by translating
+//     it; --extent-y / --extent-h let CSS place its top instead, e.g.
+//     the extent's middle 1em above the middle of the viewport:
+//       #field { top: calc(50vh - var(--extent-h, 0px) / 2
+//                          - var(--extent-y, 0px) - 1em); }
 //
-// JS re-measures only when something that changes glyph widths happens: fonts
-// finishing loading, or a resize (which matters only if type is not sized in vw).
+// JS re-measures only when something that changes glyph widths
+// happens: fonts finishing loading, or a resize (which matters only if
+// the type is not sized in vw).
 //
-// Pass `items` (a selector, NodeList or array) to centre on a subset, e.g. only
-// the currently visible spels, and call the returned `measure()` to refresh.
+// Pass `items` (a selector, NodeList or array) to centre on a subset,
+// e.g. only the currently visible spels, and call the returned
+// `measure()` to refresh.
 
 function centerField(field, { items = ".spel" } = {}) {
   const els = () =>

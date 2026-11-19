@@ -1,7 +1,11 @@
-// one-time migration of a scores.json from hundredths of a second to milliseconds:
-//   node scripts/migrate-scores-to-ms.js path/to/scores.json          (prints to stdout)
-//   node scripts/migrate-scores-to-ms.js path/to/scores.json --write  (overwrites the file)
-// multiplies each item's `pause` by 10; AUTOFADE items hold a word count, so are left alone.
+// One-time migration of a scores.json from hundredths of a second to
+// milliseconds:
+//   node scripts/migrate-scores-to-ms.js scores.json
+//     prints to stdout
+//   node scripts/migrate-scores-to-ms.js scores.json --write
+//     overwrites the file
+// Multiplies each item's `pause` by 10; AUTOFADE items hold a word
+// count, so are left alone.
 import { readFileSync, writeFileSync } from "node:fs";
 
 const [file, flag] = process.argv.slice(2);

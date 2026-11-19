@@ -1,8 +1,8 @@
 <!doctype html>
 <notebook theme="midnight">
-  <title>Reunion</title>
+  <title>Scoring template: player</title>
   <script id="2" type="text/markdown" hidden="">
-    # Reunion
+    # Scoring template: player
   </script>
   <script id="1" type="text/html">
     <!-- <img class= "rs" src="data/riverSnow/riverSnow.jpg"> -->
@@ -12,14 +12,17 @@
     </div>
   </script>
   <script id="5" type="module">
-    // THE ENGINE, from GitHub through jsDelivr: the one place this page names its version (the same
-    // tag as scoring-template.html; a new release is a change to this one line).
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.7.1";
+    // THE ENGINE, from GitHub through jsDelivr: the one place this
+    // page names its version (the tag scoring-template.html uses
+    // too; a new release is a change to this one line).
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.15.0";
     const { createConfig, typeCss, mount, play } = await import(`${engine}/index.js`);
 
-    // THE CONFIG, as exported by the notebook (config.json): the engine's defaults plus the piece's
-    // settings, so the notebook and this player cannot disagree. Player-only overrides go in the
-    // second argument, e.g. { startPara: 2, running: false } while debugging.
+    // THE CONFIG, as exported by the notebook (config.json): the
+    // engine's defaults plus the piece's settings, so the notebook
+    // and this player cannot disagree. Player-only overrides go in
+    // the second argument, e.g. { startPara: 2, running: false }
+    // while debugging.
     const config = createConfig(await FileAttachment("./data/config.json").json(), {});
   </script>
   <script id="4" type="text/html">
@@ -34,16 +37,19 @@
         cursor: none;
       }
 
-      /* the type (family, size, weight, line height, ligatures, optical size) and the fade times
-         (--fade-in, --fade-out, --field-fade) come from config.json, exported by
-         scoring-template.html, through the engine's typeCss: the type the spels were measured in.
-         Do not set them again here. */
+      /* The type (family, size, weight, line height, ligatures,
+         optical size) and the fade times (--fade-in, --fade-out,
+         --field-fade) come from config.json, exported by
+         scoring-template.html, through the engine's typeCss: the
+         type the spels were measured in. Do not set them again
+         here. */
       ${typeCss(config, "#field")}
 
       #field {
         position: absolute;
         top: 7vw;
-        /* centred on the extent of its spels; see centerField in scoringthespeltair */
+        /* Centred on the extent of its spels: see centerField in
+           the engine. */
         left: calc((100% - var(--extent-w, 0vw)) / 2 - var(--extent-x, 0vw));
         user-select: none;
         -webkit-user-select: none; /* Safari */
@@ -98,7 +104,7 @@
     </style>
   </script>
   <script id="3" type="module">
-    // Wait for the DOM to be ready before querying elements
+    // wait for the DOM before querying elements
     await new Promise(resolve => requestAnimationFrame(resolve));
 
     const byline = document.getElementById("byline");
@@ -107,14 +113,21 @@
 
     const fieldElem = document.getElementById("field");
 
-    // THE DATA exported by the notebook (see "Export" in scoring-template.html), from nbks/data/
-    const spels = new Map(await FileAttachment("./data/spels.json").json()); // id -> spel
-    const paras = await FileAttachment("./data/paras.json").json();   // spel ids, by paragraph
-    const scores = await FileAttachment("./data/scores-timeToRead.json").json(); // [{ id, duration }, ...] by paragraph
-    const measuredWith = await FileAttachment("./data/measured.json").json(); // the type the spels were measured at
+    // THE DATA exported by the notebook (see "Export" in
+    // scoring-template.html), from nbks/data/
+    // id -> spel
+    const spels = new Map(await FileAttachment("./data/spels.json").json());
+    // spel ids, by paragraph
+    const paras = await FileAttachment("./data/paras.json").json();
+    // [{ id, duration }, ...] by paragraph
+    const scores = await FileAttachment("./data/scores-timeToRead.json").json();
+    // the type the spels were measured in
+    const measuredWith = await FileAttachment("./data/measured.json").json();
 
-    // Puts the spels in the field (split into characters if config.charFades), centres the field, and
-    // warns in the console if the type here differs from the type the spels were measured in.
+    // Puts the spels in the field (split into characters if
+    // config.charFades), centres the field, and warns in the
+    // console if the type here differs from the one the spels
+    // were measured in.
     mount(config, fieldElem, { spels, measuredWith });
 
     if (config.running) play(config, fieldElem, spels, paras, scores);

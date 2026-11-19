@@ -1,21 +1,27 @@
 #!/usr/bin/env node
-// Moves a consuming project to a release of scoringthespeltair. Run it from the PROJECT's root:
+// Moves a consuming project to a release of scoringthespeltair. Run it
+// from the PROJECT's root:
 //
-//   node node_modules/scoringthespeltair/scripts/bump.js v0.5.1            (do it)
-//   node node_modules/scoringthespeltair/scripts/bump.js v0.5.1 --dry      (only say what it would do)
-//   (the first time, from a project whose installed engine predates this script:
-//    node ../scoringthespeltair/scripts/bump.js v0.5.1)
+//   node node_modules/scoringthespeltair/scripts/bump.js v0.5.1
+//   node node_modules/scoringthespeltair/scripts/bump.js v0.5.1 --dry
+//     (--dry only says what it would do)
+//   (the first time, from a project whose installed engine predates
+//    this script: node ../scoringthespeltair/scripts/bump.js v0.5.1)
 //
 // It
 //  1. points the dependency in package.json at the tag;
-//  2. rewrites package-lock.json: the lockfile is regenerated in a temporary folder
-//     (`npm install --package-lock-only`) and copied back, then CHECKED for the new pin. This is done
-//     outside the project because npm, run inside a workspace (a project folder under a root whose
-//     package.json has "workspaces"), updates package.json but not the project's own lockfile, which
-//     is the one GitHub Pages builds from;
-//  3. rewrites every jsDelivr URL "scoringthespeltair@<anything>" in nbks/ (.html .js .md .tmpl) to
-//     the same tag (a project that loads the engine from the CDN; one that uses npm has none);
-//  4. unless the project is in a workspace (or --no-install), runs `npm install` to update node_modules.
+//  2. rewrites package-lock.json: the lockfile is regenerated in a
+//     temporary folder (`npm install --package-lock-only`) and copied
+//     back, then CHECKED for the new pin. This is done outside the
+//     project because npm, run inside a workspace (a project folder
+//     under a root whose package.json has "workspaces"), updates
+//     package.json but not the project's own lockfile, which is the
+//     one GitHub Pages builds from;
+//  3. rewrites every jsDelivr URL "scoringthespeltair@<anything>" in
+//     nbks/ (.html .js .md .tmpl) to the same tag (a project that loads
+//     the engine from the CDN; one that uses npm has none);
+//  4. unless the project is in a workspace (or --no-install), runs
+//     `npm install` to update node_modules.
 import { execSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -47,14 +53,16 @@ else {
   }
 }
 
-// --- 2. package-lock.json, regenerated outside any workspace and checked ---
+// --- 2. package-lock.json, regenerated outside any workspace and
+// checked ---
 if (!existsSync("package-lock.json")) console.log("no package-lock.json: nothing to refresh (GitHub Pages builds with npm ci, which needs one)");
 else {
   say("regenerate package-lock.json in a temporary folder (npm install --package-lock-only) and copy it back");
   if (!dry) {
     const tmp = mkdtempSync(join(tmpdir(), "bump-"));
-    // a subfolder with the project's own name: a package.json without a "name" gets the folder's
-    // name in the lockfile, which must not change
+    // a subfolder with the project's own name: a package.json without a
+    // "name" gets the folder's name in the lockfile, which must not
+    // change
     const work = join(tmp, basename(resolve(".")));
     mkdirSync(work);
     try {

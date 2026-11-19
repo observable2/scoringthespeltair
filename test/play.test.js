@@ -1,5 +1,6 @@
-// play() smoke test: runs the real loop on a tiny fake document (jsdom, if available) with 1 ms
-// pauses, with the legacy key name startingPoint and the current startPara, and with fadeWords 0.
+// play() smoke test: runs the real loop on a tiny fake document (jsdom,
+// if available) with 1 ms durations, with the legacy key name
+// startingPoint and the current startPara, and with fadeWords 0.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
@@ -25,8 +26,9 @@ const record = () => {
   return seen;
 };
 
-// NB: with cycleScores off, scoreNum starts at 0 whatever the start paragraph (the TODO in play.js:
-// "allow multiple scores per para"); startPara only chooses which paragraph's spels fadeWords 0 clears.
+// NB: with cycleScores off, scoreNum starts at 0 whatever the start
+// paragraph (the TODO in play.js: "allow multiple scores per para");
+// startPara only chooses which paragraph's spels fadeWords 0 clears.
 const run = async (extra) => {
   const { play } = await import("../play.js");
   const { field, spels, paras, scores } = setup();
@@ -71,7 +73,8 @@ test("mount(): puts the spels in the field, splits them into chars, warns on a m
 test("play(): durationScale (and its old name slower) scales the time", { skip: !JSDOM }, async () => {
   const count = async (extra) => { const r = await run({ interScoreMs: 1, interCycleMs: 1, ...extra }); return r.stoppedAt; };
   const normal = await count({ durationScale: 1 });
-  const slow = await count({ durationScale: 40 }); // every pause (1 ms) becomes 40 ms
+  // every duration (1 ms) becomes 40 ms
+  const slow = await count({ durationScale: 40 });
   const oldName = await count({ durationScale: undefined, slower: 40 });
   assert.ok(slow < normal / 3, `slow ${slow} vs normal ${normal}`);
   assert.ok(Math.abs(oldName - slow) <= 2, `old name ${oldName} vs ${slow}`);
@@ -97,19 +100,29 @@ test("play(): a score may name a generator (options.generators), made anew each 
 test("scoreGap: the unit a score ends has its own gap; the score's settings come first; legacy configs keep interScoreMs", async () => {
   const { scoreGap, cycleGap } = await import("../score.js");
   const spels = new Map([["a", { ofld: "f1" }], ["b", { ofld: "f1" }], ["c", { ofld: "f2" }]]);
-  const paras = [["a"], ["b"], ["c"]]; // a, b end paras within f1; b also ends f1; c is last
+  // a, b end paras within f1; b also ends f1; c is last
+  const paras = [["a"], ["b"], ["c"]];
   const config = { interScoreMs: 5, interParaMs: 10, interFieldMs: 20, interCycleMs: 40 };
   const gap = (n, c = config, settings) => scoreGap(n, { config: c, settings, paras, spels });
   assert.equal(gap(0), 10); // ends a para
-  assert.equal(gap(1), 20); // ends a para and a field: the field outranks
-  assert.equal(gap(2), 20); // last para of the cycle: it ends its field too (the cycle gap follows)
-  assert.equal(gap(1, config, { interFieldMs: 7 }), 7); // the score overrides the field gap
+  // ends a para and a field: the field outranks
+  assert.equal(gap(1), 20);
+  // last para of the cycle: it ends its field too (the cycle gap
+  // follows)
+  assert.equal(gap(2), 20);
+  // the score overrides the field gap
+  assert.equal(gap(1, config, { interFieldMs: 7 }), 7);
   assert.equal(gap(0, config, { interParaMs: 3 }), 3);
-  assert.equal(gap(0, config, { interScoreMs: 2 }), 2); // what the score says beats the config's unit gap
-  assert.equal(gap(1, { interScoreMs: 5 }), 5); // legacy config: no unit gaps
-  assert.equal(scoreGap(0, { config: { ...config, cycleScores: true }, paras, spels }), 5); // a score is not a para
-  assert.equal(scoreGap(0, { config, paras, spels: new Map([["a", {}], ["b", {}], ["c", {}]]) }), 10); // no ofld recorded: no fields
-  assert.equal(scoreGap(2, { config, paras, spels: new Map([["a", {}], ["b", {}], ["c", {}]]) }), 10); // ... not even at the end
+  // what the score says beats the config's unit gap
+  assert.equal(gap(0, config, { interScoreMs: 2 }), 2);
+  // legacy config: no unit gaps
+  assert.equal(gap(1, { interScoreMs: 5 }), 5);
+  // a score is not a para
+  assert.equal(scoreGap(0, { config: { ...config, cycleScores: true }, paras, spels }), 5);
+  // no ofld recorded: no fields
+  assert.equal(scoreGap(0, { config, paras, spels: new Map([["a", {}], ["b", {}], ["c", {}]]) }), 10);
+  // ... not even at the end
+  assert.equal(scoreGap(2, { config, paras, spels: new Map([["a", {}], ["b", {}], ["c", {}]]) }), 10);
   assert.equal(cycleGap({ config }), 40);
   assert.equal(cycleGap({ config, settings: { interCycleMs: 1 } }), 1);
 });
@@ -119,12 +132,15 @@ test("centerField(): publishes the extent's left, width, top and height in vw", 
   const dom = new JSDOM(`<div id="field"><span class="spel" id="a"></span><span class="spel" id="b"></span></div>`);
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
-  Object.defineProperty(dom.window, "innerWidth", { value: 1000 }); // 1vw = 10px
+  // 1vw = 10px
+  Object.defineProperty(dom.window, "innerWidth", { value: 1000 });
   const rect = (left, top, right, bottom) => ({ left, top, right, bottom, width: right - left });
   const d = dom.window.document;
   d.getElementById("field").getBoundingClientRect = () => rect(100, 200, 100, 200);
-  d.getElementById("a").getBoundingClientRect = () => rect(110, 210, 210, 264); // x 10..110, y 10..64
-  d.getElementById("b").getBoundingClientRect = () => rect(100, 200, 160, 254); // x 0..60,  y 0..54
+  // x 10..110, y 10..64
+  d.getElementById("a").getBoundingClientRect = () => rect(110, 210, 210, 264);
+  // x 0..60,  y 0..54
+  d.getElementById("b").getBoundingClientRect = () => rect(100, 200, 160, 254);
   centerField(d.getElementById("field"));
   const st = d.getElementById("field").style;
   assert.equal(st.getPropertyValue("--extent-x"), "0vw");
@@ -133,9 +149,11 @@ test("centerField(): publishes the extent's left, width, top and height in vw", 
   assert.equal(st.getPropertyValue("--extent-h"), "6.4vw");
 });
 
-// --- fading out: fadeOut / fadeStyle (and the legacy fadeWords 0 wipe), with charFades on ----------
-// Plays one cycle of a, b, c, d (a, b, c are in ofld 0, d in ofld 1) and returns the successive sets of
-// spels that have a visible character (consecutive repeats dropped). Times are scaled by 0.1.
+// --- fading out: fadeOut / fadeStyle (and the legacy fadeWords 0
+// wipe), with charFades on ---
+// Plays one cycle of a, b, c, d (a, b, c are in ofld 0, d in ofld 1)
+// and returns the successive sets of spels that have a visible
+// character (consecutive repeats dropped). Times are scaled by 0.1.
 const fadeStates = async (extra, { settings, scores: scoresIn, paras: parasIn, runMs = 330, during = [] } = {}) => {
   const { play } = await import("../play.js");
   const { splitIntoChars } = await import("../display.js");
@@ -163,7 +181,8 @@ const fadeStates = async (extra, { settings, scores: scoresIn, paras: parasIn, r
   for (const [ms, fn] of during) setTimeout(() => fn(config), ms);
   await new Promise((r) => setTimeout(r, runMs));
   config.running = false;
-  await new Promise((r) => setTimeout(r, 120)); // let the loop finish (it holds the global document)
+  // let the loop finish (it holds the global document)
+  await new Promise((r) => setTimeout(r, 120));
   return states;
 };
 
@@ -212,7 +231,8 @@ test("play(): fadeOrder reverse fades the last shown first; fadeStaggerMs sets t
   const rev = await fadeStates({ fadeOut: "ofld", fadeStyle: "sequence", fadeOrder: "reverse" });
   assert.deepEqual(rev.slice(0, 7), ["a", "ab", "abc", "ab", "a", "", "d"]);
   const span = (st) => st.times[st.indexOf("")] - st.times[st.indexOf("abc")];
-  const slow = await fadeStates({ fadeOut: "ofld", fadeStyle: "sequence" }); // each after its item's duration (20 ms)
+  // each after its item's duration (20 ms)
+  const slow = await fadeStates({ fadeOut: "ofld", fadeStyle: "sequence" });
   const quick = await fadeStates({ fadeOut: "ofld", fadeStyle: "sequence", fadeStaggerMs: 0 });
   assert.ok(span(slow) >= 50, `durations: ${span(slow)} ms`);
   assert.ok(span(quick) < 40, `stagger 0: ${span(quick)} ms`);
@@ -227,7 +247,8 @@ test("play(): revealStyle together shows a score's spels at once, and fades them
 test("play(): holdMs keeps the whole unit showing at least that long from its last spel", { skip: !JSDOM }, async () => {
   const shown = (st) => st.times[st.indexOf("")] - st.times[st.indexOf("a")];
   const plain = await fadeStates({ fadeOut: "score" }, { runMs: 400 });
-  const held = await fadeStates({ fadeOut: "score", holdMs: 1500 }, { runMs: 400 }); // 150 ms scaled
+  // 150 ms scaled
+  const held = await fadeStates({ fadeOut: "score", holdMs: 1500 }, { runMs: 400 });
   assert.ok(shown(held) >= 140, `held ${shown(held)} ms`);
   assert.ok(shown(plain) < 80, `plain ${shown(plain)} ms`);
 });
@@ -244,10 +265,12 @@ test("play(): a score's fadeMs / fadeInMs / fadeOutMs set the field's --fade-in 
   assert.equal(a.field.style.getPropertyValue("--fade-in"), "7ms");
   assert.equal(a.field.style.getPropertyValue("--fade-out"), "9ms");
   assert.equal(a.field.style.getPropertyValue("--char-fade"), "7ms", "the former variables follow the fade-in");
-  const old = await fadeStates({ fadeOut: "score" }, { settings: all({ charFadeMs: 11 }) }); // charFades is on here
+  // charFades is on here
+  const old = await fadeStates({ fadeOut: "score" }, { settings: all({ charFadeMs: 11 }) });
   assert.equal(old.field.style.getPropertyValue("--fade-in"), "11ms");
   assert.equal(old.field.style.getPropertyValue("--fade-out"), "11ms");
-  const b = await fadeStates({ fadeOut: "score" }, { settings: [{ fadeMs: 7 }], runMs: 150 }); // later scores have none
+  // later scores have none
+  const b = await fadeStates({ fadeOut: "score" }, { settings: [{ fadeMs: 7 }], runMs: 150 });
   assert.equal(b.field.style.getPropertyValue("--fade-in"), "");
   assert.equal(b.field.style.getPropertyValue("--fade-out"), "");
 });
@@ -274,8 +297,10 @@ test("play(): config.paused holds the piece; config.skip ends the score at once;
 });
 
 test("play(): a score's own clearPauseMs is the dark time after its unit fades", { skip: !JSDOM }, async () => {
-  const dark = (st, from) => st.times[st.indexOf("", from) + 1] - st.times[st.indexOf("", from)]; // "" to the next spel
-  const states = await fadeStates({ fadeOut: "score" }, { settings: [{ clearPauseMs: 1500 }], runMs: 500 }); // 150 ms scaled, for score 0
+  // "" to the next spel
+  const dark = (st, from) => st.times[st.indexOf("", from) + 1] - st.times[st.indexOf("", from)];
+  // 150 ms scaled, for score 0
+  const states = await fadeStates({ fadeOut: "score" }, { settings: [{ clearPauseMs: 1500 }], runMs: 500 });
   assert.deepEqual(states.slice(0, 4), ["a", "", "b", ""]);
   assert.ok(dark(states, 0) >= 140, `score 0: ${dark(states, 0)} ms`);
   // the other scores use the config's clearPauseMs (0 here)

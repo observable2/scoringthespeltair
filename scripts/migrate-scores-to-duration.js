@@ -1,9 +1,14 @@
-// one-time migration of a scores.json from the item property `pause` to `duration`:
-//   node scripts/migrate-scores-to-duration.js path/to/scores.json          (prints to stdout)
-//   node scripts/migrate-scores-to-duration.js path/to/scores.json --write  (overwrites the file)
-// renames each item's `pause` to `duration`, keeping the item's key order. AUTOFADE items hold a word
-// count, not a time, so are left alone (and so is a score that names a generator, not an array of items).
-// The engine reads either name (durationOf in score.js), so a scores.json can be migrated when convenient.
+// One-time migration of a scores.json from the item property `pause` to
+// `duration`:
+//   node scripts/migrate-scores-to-duration.js scores.json
+//     prints to stdout
+//   node scripts/migrate-scores-to-duration.js scores.json --write
+//     overwrites the file
+// Renames each item's `pause` to `duration`, keeping the item's key
+// order. AUTOFADE items hold a word count, not a time, so are left
+// alone (and so is a score that names a generator, not an array of
+// items). The engine reads either name (durationOf in score.js), so a
+// scores.json can be migrated when convenient.
 import { readFileSync, writeFileSync } from "node:fs";
 
 const [file, flag] = process.argv.slice(2);

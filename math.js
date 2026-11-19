@@ -1,5 +1,5 @@
 function mod(n, m) {
-  // mod function that handles negative numbers, usage: mod(num, modulous)
+  // modulo that handles negative numbers: mod(num, modulus)
   return ((n % m) + m) % m;
 }
 
@@ -8,7 +8,8 @@ function shuffle (b) {
   let i = a.length;
   if (i < 2) return a;
   while (--i > 0) {
-    let j = ~~(Math.random() * (i + 1)); // ~~ is a common optimization for Math.floor
+    // ~~ is a common optimization for Math.floor
+    let j = ~~(Math.random() * (i + 1));
     let t = a[j];
     a[j] = a[i];
     a[i] = t;

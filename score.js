@@ -1,13 +1,14 @@
 import { mod } from "./math.js";
 import { spelTime } from "./timetoread.js";
 
-// The duration of a score item, in ms: the time it holds before the next item. A score item is
-// { id, duration }. Scores made before the rename call it `pause`, which is still read, so they play
-// unchanged (scripts/migrate-scores-to-duration.js renames it in a scores.json).
+// The duration of a score item, in ms: the time it holds before the
+// next item. A score item is { id, duration }. Scores made before the
+// rename call it `pause`, which is still read, so they play unchanged
+// (scripts/migrate-scores-to-duration.js renames it in a scores.json).
 const durationOf = (item) => item.duration ?? item.pause;
 
-// sums the durations of the n score items following idx (wrapping around the score);
-// with skipPauses, "PAUSE" items contribute nothing
+// Sums the durations of the n score items after idx (wrapping around
+// the score); with skipPauses, "PAUSE" items contribute nothing.
 function sumDurations(score, idx, n, { skipPauses = false } = {}) {
   let total = 0;
   for (let i = 0; i < n; ++i) {
@@ -18,16 +19,23 @@ function sumDurations(score, idx, n, { skipPauses = false } = {}) {
 }
 const sumPauses = sumDurations; // the former name
 
-// Reading times for fading out: for each item of a score, how long it takes to read, WITHOUT the
-// end-of-unit time a score item's duration may carry (the whitespace after a line's last spel: a line break ...).
-// Those durations belong before the next unit is faded IN, not to when words fade OUT.
-//  - A spel in the middle of a line (the next item is a spel on the same line, by `topvw`, para,
-//    clmn and ofld) has no such whitespace: its duration IS its reading time, as scored or recorded.
-//  - A spel that ends a line (or the score, or has no recorded position) is estimated (`spelTime` of
-//    its string, no gap) and scaled by this score's pace: the sum of its mid-line durations over the sum
-//    of their estimates. A linear score (durations from spelTime) has pace 1; a score timed from a
-//    recording has the pace of that recording.
-//  - "PAUSE" and "AUTOFADE" items are not spels and read in 0. A spel not in `spels` reads in its duration.
+// Reading times for fading out: for each item of a score, how long it
+// takes to read, WITHOUT the end-of-unit time its duration may carry
+// (the whitespace after a line's last spel: a line break ...). That
+// time belongs before the next unit is faded IN, not to when words fade
+// OUT.
+//  - A spel in the middle of a line (the next item is a spel on the
+//    same line, by `topvw`, para, clmn and ofld) has no such
+//    whitespace: its duration IS its reading time, as scored or
+//    recorded.
+//  - A spel that ends a line (or the score, or has no recorded
+//    position) is estimated (`spelTime` of its string, no gap) and
+//    scaled by this score's pace: the sum of its mid-line durations
+//    over the sum of their estimates. A linear score (durations from
+//    spelTime) has pace 1; a score timed from a recording has the pace
+//    of that recording.
+//  - "PAUSE" and "AUTOFADE" items are not spels and read in 0. A spel
+//    not in `spels` reads in its duration.
 const fadeReadOptions = { whitespace: "respect" };
 function readingTimes(score, spels) {
   const isSpel = (item) => item.id !== "PAUSE" && item.id !== "AUTOFADE";
@@ -53,30 +61,36 @@ function readingTimes(score, spels) {
   });
 }
 
-// How long after a spel appears it fades out, when it fades n spels later (ms, before durationScale):
-// the reading times (see readingTimes) of the spel and the n after it, wrapping around the score.
+// How long after a spel appears it fades out, when it fades n spels
+// later (ms, before durationScale): the reading times (see
+// readingTimes) of the spel and the n after it, wrapping around.
 const fadeDelay = (times, idx, n) => {
   let total = times[idx];
   for (let i = 0; i < n; ++i) total += times[mod(idx + i + 1, times.length)];
   return total;
 };
 
-// A score item that shows nothing and waits `ms`: { id: "PAUSE", duration: ms }. A whole score may be
-// one such item (a breath between two scores).
+// A score item that shows nothing and waits `ms`:
+// { id: "PAUSE", duration: ms }. A whole score may be one such item (a
+// breath between two scores).
 const pauseItem = (ms) => ({ id: "PAUSE", duration: ms });
 
-// The same spels again, each with no duration. Played after (or as) a score, they toggle every one of
-// those spels at once: the way to fade what a score has shown, or to show a whole verse in one go.
-// `items` are score items; only their ids are used.
+// The same spels again, each with no duration. Played after (or as) a
+// score, they toggle every one of those spels at once: the way to fade
+// what a score has shown, or to show a whole verse in one go. `items`
+// are score items; only their ids are used.
 const toggleItems = (items) => items.map(({ id }) => ({ id, duration: 0 }));
 
-// A score from recorded timings: one item per spel, its duration the time from the start of that word
-// to the start of the next (the last word: its own length), plus `extraMs` to every duration.
-//   timings  [{ start, end, word? }, ...] in SECONDS, as a forced aligner or a hand-timed reading
-//            gives them; the conversion to milliseconds is made here, at the boundary
-//   ids      the spel ids, in the same order (without them each timing's `word` is the id)
-//   extraMs  added to every duration (default 0): a reader who is slower than the recording
-// (This is what `alignedSpels` did in the Framework notebooks, and what reading's timings are.)
+// A score from recorded timings: one item per spel, its duration the
+// time from the start of that word to the start of the next (the last
+// word: its own length), plus `extraMs` to every duration.
+//   timings  [{ start, end, word? }, ...] in SECONDS, as a forced
+//            aligner or a hand-timed reading gives them; converted to
+//            milliseconds here
+//   ids      the spel ids, in the same order (without them each
+//            timing's `word` is the id)
+//   extraMs  added to every duration (default 0): a reader who is
+//            slower than the recording
 function scoreFromTimings(timings, { ids, extraMs = 0 } = {}) {
   if (ids && ids.length !== timings.length)
     throw new Error(`scoringthespeltair: scoreFromTimings has ${timings.length} timings but ${ids.length} ids`);
@@ -89,13 +103,17 @@ function scoreFromTimings(timings, { ids, extraMs = 0 } = {}) {
   });
 }
 
-// A score of scores.json is an array of { id, duration } items. It may instead NAME a generator, so that
-// a piece can make a new, quasi-random score each time it comes round (a score is JSON; code is not):
+// A score of scores.json is an array of { id, duration } items. It may
+// instead NAME a generator, so that a piece can make a new,
+// quasi-random score each time it comes round (a score is JSON; code is
+// not):
 //   "name"                          the generator called `name`
 //   { generator: "name", args: [] } the same, with arguments
-// `generators` is the page's own { name: function } (play's `options.generators`). A generator is
-// called as generator(context, ...args), with context { spels, paras, scores, config, scoreNum, args },
-// and returns a score (an array of items). An array is returned as it is.
+// `generators` is the page's own { name: function } (play's
+// `options.generators`). A generator is called as
+// generator(context, ...args), with context { spels, paras, scores,
+// config, scoreNum, args }, and returns a score (an array of items). An
+// array is returned as it is.
 function resolveScore(entry, context = {}, generators = {}) {
   if (Array.isArray(entry)) return entry;
   const isName = typeof entry === "string";
@@ -112,24 +130,32 @@ function resolveScore(entry, context = {}, generators = {}) {
   return score;
 }
 
-// The settings that refine a fade-out of a whole score / ofld / cycle, the score's own first, then the
-// config (see the README, "Fading out"). Times are ms, before durationScale:
-//   fadeOrder     "shown" (the order they appeared), "reverse", "random": the order of a "sequence" fade
-//   fadeStaggerMs a fixed step between spels of a "sequence" fade, in place of each item's duration
-//   holdMs        the least time the whole unit stays showing, from when its last spel appeared, before it fades
-//   overlapMs     the next score starts this long after the fade begins, whatever is left of it fading on
-//                 (undefined: the fade is over, plus clearPauseMs, before the next score starts)
-//   revealStyle   "sequence" (the default: the items appear one by one) or "together" (all the score's spels at once, then
-//                 its durations are waited out)
+// The settings that refine a fade-out of a whole score / ofld / cycle:
+// the score's own first, then the config (README, "Fading out"). Times
+// are ms, before durationScale:
+//   fadeOrder     "shown" (as they appeared), "reverse", "random": the
+//                 order of a "sequence" fade
+//   fadeStaggerMs a fixed step between spels of a "sequence" fade, in
+//                 place of each item's duration
+//   holdMs        the least time the whole unit stays showing, from
+//                 when its last spel appeared, before it fades
+//   overlapMs     the next score starts this long after the fade
+//                 begins, whatever is left of it fading on (undefined:
+//                 the fade is over, plus clearPauseMs, first)
+//   revealStyle   "sequence" (default: the items appear one by one) or
+//                 "together" (all the score's spels at once, then its
+//                 durations are waited out)
 function fadeOptions(config, settings = {}) {
   const pick = (k, d) => settings[k] ?? config[k] ?? d;
   return { order: pick("fadeOrder", "shown"), staggerMs: pick("fadeStaggerMs"), holdMs: pick("holdMs", 0),
     overlapMs: pick("overlapMs"), reveal: pick("revealStyle", "sequence") };
 }
 
-// Does the score sNum end a field (an ofld)? Yes if the next paragraph's first spel is in another
-// ofld, or if it is the last paragraph (the cycle's end ends the ofld it is in). Spels without an
-// `ofld` (data from before it was recorded) never end one (see scoreGap).
+// Does the score sNum end a field (an ofld)? Yes if the next
+// paragraph's first spel is in another ofld, or if it is the last
+// paragraph (the cycle's end ends the ofld it is in). Spels without an
+// `ofld` (data from before it was recorded) never end one (see
+// scoreGap).
 const endsField = (sNum, { paras, spels }) => {
   const ofldOf = (para) => spels?.get(para?.[0])?.ofld;
   const here = ofldOf(paras?.[sNum]), next = ofldOf(paras?.[sNum + 1]);
@@ -137,41 +163,52 @@ const endsField = (sNum, { paras, spels }) => {
   return sNum + 1 >= (paras?.length ?? 0) || (next !== undefined && here !== next);
 };
 
-// Does the score sNum end the ofld it is in, for fading it out? Like endsField, but a score also ends
-// its ofld when the spels carry no ofld (nothing says otherwise) or when no paragraph follows it.
+// Does the score sNum end the ofld it is in, for fading it out? Like
+// endsField, but a score also ends its ofld when the spels carry no
+// ofld (nothing says otherwise) or when no paragraph follows it.
 const endsOfld = (sNum, { paras, spels }) => {
   const ofldOf = (para) => spels?.get(para?.[0])?.ofld;
   const here = ofldOf(paras?.[sNum]), next = ofldOf(paras?.[sNum + 1]);
   return here === undefined || next === undefined || here !== next;
 };
 
-// The gap after a score, in ms (before durationScale). A score that ends a unit with its own gap
-// uses that gap in place of interScoreMs: the end of a field (interFieldMs) outranks the end of a
-// paragraph (interParaMs). The score's own settings come first, then the config:
-//   settings.interFieldMs ?? settings.interScoreMs ?? config.interFieldMs ?? config.interScoreMs
-// (a config without interFieldMs/interParaMs, such as a legacy one, therefore gives interScoreMs as always).
-// With cycleScores a score is not a paragraph, so no unit ends (only the cycle's end, see cycleGap).
-// A score ends a field if the next paragraph's first spel is in another ofld, or if it is the last
-// paragraph (before 0.11.0 the last one took interParaMs); spels without an `ofld` (data from before
-// it was recorded) never end one.
+// The gap after a score, in ms (before durationScale). A score that
+// ends a unit with its own gap uses that gap in place of interScoreMs:
+// the end of a field (interFieldMs) outranks the end of a paragraph
+// (interParaMs). The score's own settings come first, then the config:
+//   settings.interFieldMs ?? settings.interScoreMs ??
+//   config.interFieldMs ?? config.interScoreMs
+// A config without interFieldMs / interParaMs (a legacy one) therefore
+// gives interScoreMs as always. With cycleScores a score is not a
+// paragraph, so no unit ends (only the cycle's end, see cycleGap). A
+// score ends a field if the next paragraph's first spel is in another
+// ofld, or if it is the last paragraph; spels without an `ofld` never
+// end one.
 function scoreGap(sNum, { config, settings = {}, paras, spels }) {
   if (config.cycleScores || !paras?.[sNum]) return settings.interScoreMs ?? config.interScoreMs;
   if (endsField(sNum, { paras, spels })) return settings.interFieldMs ?? settings.interScoreMs ?? config.interFieldMs ?? config.interScoreMs;
   return settings.interParaMs ?? settings.interScoreMs ?? config.interParaMs ?? config.interScoreMs;
 }
 
-// What fades the spels out, and how (see the README, "Fading"). The score's own settings come first,
-// then the config:
-//   fadeOut   "window"  each spel fades fadeWords spels after it (n = config.fadeWords)
-//             "scored"  the engine never fades: the score's own items do (toggleItems)
-//             "score"   the spels of a score fade after its last item and its gap (interScoreMs ...)
-//             "ofld"    the spels of an ofld fade after the score that ends it and its gap (interFieldMs)
-//             "cycle"   the spels of the whole cycle fade after its last score and its gap
-//   fadeStyle "together" (default) all at once; "sequence": in the order shown, each after its item's duration
-// (fadeOptions, below, has the settings that refine "score" / "ofld" / "cycle".)
-// A config without fadeOut is read as before, from fadeWords: n > 0 "window"; 0 "field", the old
-// wipe of the whole #field after each score (kept for old projects); -1 "scored" (any other value
-// is "window", which fades nothing without a positive fadeWords). `legacy` is true then.
+// What fades the spels out, and how (README, "Fading"). The score's
+// own settings come first, then the config:
+//   fadeOut   "window"  each spel fades fadeWords spels after it
+//                       (n = config.fadeWords)
+//             "scored"  the engine never fades: the score's own items
+//                       do (toggleItems)
+//             "score"   a score's spels fade after its last item and
+//                       its gap (interScoreMs ...)
+//             "ofld"    an ofld's spels fade after the score that ends
+//                       it and its gap (interFieldMs)
+//             "cycle"   the cycle's spels fade after its last score and
+//                       its gap
+//   fadeStyle "together" (default) all at once; "sequence": in the
+//             order shown, each after its item's duration
+// (fadeOptions, above, refines "score" / "ofld" / "cycle".)
+// A config without fadeOut is read from fadeWords: n > 0 "window"; 0
+// "field", the old wipe of the whole #field after each score (kept for
+// old projects); -1 "scored"; any other value is "window", which fades
+// nothing without a positive fadeWords. `legacy` is true then.
 const FADE_OUTS = ["window", "scored", "score", "ofld", "cycle"];
 function resolveFade(config, settings = {}) {
   const style = settings.fadeStyle ?? config.fadeStyle ?? "together";
@@ -182,8 +219,8 @@ function resolveFade(config, settings = {}) {
   return { out: n === 0 ? "field" : n === -1 ? "scored" : "window", style, legacy: true };
 }
 
-// The gap at the end of a cycle (before durationScale): the last score of the cycle may override it.
-// It comes after the score's own gap, as it always has.
+// The gap at the end of a cycle (before durationScale): the last score
+// of the cycle may override it. It comes after the score's own gap.
 const cycleGap = ({ config, settings = {} }) => settings.interCycleMs ?? config.interCycleMs;
 
 export { scoreGap, endsField, endsOfld, resolveFade, fadeOptions, cycleGap, durationOf, sumDurations, sumPauses, fadeDelay, readingTimes, pauseItem, toggleItems, scoreFromTimings, resolveScore };

@@ -1,62 +1,226 @@
-// Configuration for scoringthespeltair. Read the README, "Configuration", first.
+// Configuration for scoringthespeltair: see the README, "Configuration"
 //
 // Two things are exported from here:
 //
-//   createConfig(overrides)  the current way: the engine's defaults (`configSchema`), your overrides,
-//                            legacy names mapped to current ones, mistakes warned about.
-//   defaultConfig            the LEGACY defaults, kept exactly as they were so that projects that
-//                            spread it (`{ ...defaultConfig, ... }`) play exactly as before.
-//                            New projects should use createConfig.
+//   createConfig(overrides)  the current way: the engine's defaults
+//                            (`configSchema`), your overrides, legacy
+//                            names mapped to current ones, mistakes
+//                            warned about.
+//   defaultConfig            the LEGACY defaults, unchanged, so that
+//                            projects that spread it
+//                            (`{ ...defaultConfig, ... }`) play as
+//                            before. New projects: use createConfig.
 //
-// All times are in milliseconds (keys end in Ms); lengths ending in Vw are in vw.
+// Times are in milliseconds (keys end in Ms); lengths ending in Vw are
+// in vw.
 
-// --- the schema: the one place where every setting is defined -------------------------------------
-// scope:  "measure"  changes the positions measured in the notebook, so the notebook and the player
-//                    must agree (it is exported with the data as `measuredWith`, and the player checks it)
+// --- the schema: the one place where every setting is defined ---
+// scope:  "measure"  changes the positions measured in the notebook, so
+//                    notebook and player must agree (it is exported
+//                    with the data as `measuredWith`, and the player
+//                    checks it)
 //         "play"     read by the engine while the piece plays
-//         "page"     applied by the page (CSS/layout); the engine only carries the default
+//         "page"     applied by the page (CSS/layout); the engine only
+//                    carries the default
 const configSchema = {
   // --- play: what the engine does
-  running:        { default: true,  scope: "play", doc: "false stops play() (handy while debugging)" },
-  startPara:      { default: 0,     scope: "play", doc: "index of the paragraph where each cycle starts (usually 0; higher while debugging)" },
-  cycleScores:    { default: false, scope: "play", doc: "true: one cycle plays every score in order (see scoreSettings); false: one score per paragraph" },
-  scoreSettings:  { default: undefined, scope: "play", doc: "array indexed by score number of { durationScale, interScoreMs, interParaMs, interFieldMs, interCycleMs, effect, shuffle, fadeOut, fadeStyle, fadeOrder, fadeStaggerMs, holdMs, overlapMs, revealStyle, clearPauseMs, fadeMs, fadeInMs, fadeOutMs }" },
-  fadeOut:        { default: undefined, scope: "play", doc: "what fades the spels out: \"window\" (each spel fades fadeWords spels after it), \"scored\" (the engine never fades; the score's own items do), \"score\" (a score's spels fade after its last item and its gap), \"ofld\" (an ofld's spels fade after the score that ends it and its gap), \"cycle\" (all the cycle's spels fade after its last score and gap). Absent: read from fadeWords, as before (n > 0 window; 0 wipes the whole field after each score; -1 scored). A score may override it (scoreSettings)" },
-  fadeStyle:      { default: "together", scope: "play", doc: "with fadeOut score / ofld / cycle: \"together\" fades all the spels at once; \"sequence\" in the order shown, each after its item's duration. A score may override it (scoreSettings)" },
-  fadeOrder:      { default: "shown", scope: "play", doc: "the order of a fadeStyle \"sequence\" fade: \"shown\" (as they appeared), \"reverse\", \"random\". A score may override it" },
-  fadeStaggerMs:  { default: undefined, scope: "play", doc: "a fixed step between the spels of a \"sequence\" fade, in place of each item's duration. A score may override it" },
-  holdMs:         { default: 0,     scope: "play", doc: "with fadeOut score / ofld / cycle: the least time the whole unit stays showing, counted from when its last spel appeared, before it fades. A score may override it" },
-  overlapMs:      { default: undefined, scope: "play", doc: "with fadeOut score / ofld / cycle: the next score starts this long after the fade begins, however much of the fade is left (a cross-fade); absent: the fade is over, and clearPauseMs, first. A score may override it" },
-  revealStyle:    { default: "sequence", scope: "play", doc: "with fadeOut score / ofld / cycle: \"sequence\" shows the items one by one; \"together\" shows all the score's spels at once, then waits out the item durations. A score may override it" },
-  fadeWords:      { default: 5,     scope: "play", doc: "with fadeOut \"window\": each spel fades this many spels later. (Legacy, when fadeOut is absent: 0 removes the paragraph after each score; -1 leaves the fading to the scores)" },
-  paraFadeWords:  { default: undefined, scope: "play", doc: "array, one fadeWords value per paragraph (overrides fadeWords)" },
-  charFades:      { default: true,  scope: "play", doc: "true: spels are revealed character by character; false: whole spels fade" },
-  charIntervalMs: { default: 80,    scope: "play", doc: "delay between characters when charFades" },
-  durationScale:  { default: 1,     scope: "play", doc: "multiplier on every duration: pauses, fades, gaps, the per-character delay (2: everything lasts twice as long; 0: at once)" },
-  interScoreMs:   { default: 3000,  scope: "play", doc: "gap after each score (replaced by interParaMs / interFieldMs when the score ends a paragraph / field)" },
-  interFieldMs:   { default: 3000, scope: "play", doc: "gap after a score that ends a field (ofld), in place of interScoreMs; a score may override it. Needs spels recorded with their ofld; a config without it (legacy) uses interScoreMs" },
-  interParaMs:    { default: 1000, scope: "play", doc: "gap after a score that ends a paragraph (cycleScores off), in place of interScoreMs; a score may override it; the end of a field outranks it" },
-  interCycleMs:   { default: 3000,  scope: "play", doc: "gap before the first score and at the end of each cycle (after the last score's own gap); the last score may override it" },
-  creditsPauseMs: { default: 0,     scope: "play", doc: "how long #byline is shown at the end of each cycle (0: not shown)" },
-  fieldFadeMs:    { default: 2500,  scope: "play", doc: "how long the whole field takes to fade (the legacy fadeWords 0 wipe); play() waits this long plus 250 ms. Also the field's CSS transition (typeCss)" },
-  clearPauseMs:   { default: 1300,   scope: "play", doc: "pause after a fade-out of a whole score / ofld (fadeOut score / ofld / cycle) or the legacy fadeWords 0 wipe, before the next score starts: the dark time between two units. A score may override it (scoreSettings)" },
-  PRODUCTION:     { default: false, scope: "play", doc: "true: no console logging from play()" },
-  // --- page: applied by the pages through typeCss(config) and the CSS variables it sets
-  fadeMs:         { default: 1300,  scope: "page", doc: "CSS fade time of the unit that fades: a character (charFades) or a whole spel. A score may override it (scoreSettings). Replaces spelFadeMs and charFadeMs" },
-  fadeInMs:       { default: undefined, scope: "page", doc: "fade time when a spel / character appears, in place of fadeMs. A score may override it" },
-  fadeOutMs:      { default: undefined, scope: "page", doc: "fade time when it disappears, in place of fadeMs. A score may override it" },
-  // --- measure: the type the spels are measured in, and the layout the measurement bakes in
-  fontFamily:     { default: "Source Serif 4", scope: "measure", doc: "family of the type (the notebook loads it from Google Fonts; the player must have the same file)" },
-  fontWeight:     { default: 300,   scope: "measure", doc: "CSS font-weight, 100-900" },
-  fontSizeVw:     { default: 3,     scope: "measure", doc: "font size of the galley and the field, in vw; spel positions scale with it" },
-  lineHeight:     { default: 1.8,   scope: "measure", doc: "unitless line height" },
-  opsz:           { default: 14,    scope: "measure", doc: "optical-size axis, fixed so that the type does not change with the window width; null leaves it to the browser" },
-  ligatures:      { default: "no-common-ligatures", scope: "measure", doc: "CSS font-variant-ligatures" },
-  clmnRight:      { default: 0,     scope: "measure", doc: "vw added to the left of every spel in a clmn named \"right\"" },
+  running: {
+    default: true, scope: "play",
+    doc: "false stops play() (handy while debugging)",
+  },
+  startPara: {
+    default: 0, scope: "play",
+    doc: "paragraph where each cycle starts (0; higher while "
+      + "debugging)",
+  },
+  cycleScores: {
+    default: false, scope: "play",
+    doc: "true: one cycle plays every score in order; false: one "
+      + "score per paragraph",
+  },
+  scoreSettings: {
+    default: undefined, scope: "play",
+    doc: "array by score number of per-score values: "
+      + "durationScale, the gaps (inter*Ms), clearPauseMs, "
+      + "effect, shuffle, the fade settings and the fade times. "
+      + "Built by expandScoreSettings",
+  },
+  fadeOut: {
+    default: undefined, scope: "play",
+    doc: "what fades the spels out: \"window\" (each fades "
+      + "fadeWords spels later), \"scored\" (the score's own "
+      + "items do it), \"score\" / \"ofld\" / \"cycle\" (that unit's "
+      + "spels fade after its last score and gap). Absent: read "
+      + "from fadeWords (n > 0 window; 0 wipes the field after "
+      + "each score; -1 scored). Overridable per score",
+  },
+  fadeStyle: {
+    default: "together", scope: "play",
+    doc: "with fadeOut score / ofld / cycle: \"together\" fades "
+      + "all the spels at once; \"sequence\" one after another, "
+      + "each after its item's duration. Overridable per score",
+  },
+  fadeOrder: {
+    default: "shown", scope: "play",
+    doc: "order of a \"sequence\" fade: \"shown\" (as they "
+      + "appeared), \"reverse\", \"random\". Overridable per score",
+  },
+  fadeStaggerMs: {
+    default: undefined, scope: "play",
+    doc: "a fixed step between the spels of a \"sequence\" fade, "
+      + "in place of each item's duration. Overridable per "
+      + "score",
+  },
+  holdMs: {
+    default: 0, scope: "play",
+    doc: "with fadeOut score / ofld / cycle: the least time the "
+      + "whole unit stays showing, from when its last spel "
+      + "appeared, before it fades. Overridable per score",
+  },
+  overlapMs: {
+    default: undefined, scope: "play",
+    doc: "with fadeOut score / ofld / cycle: the next score "
+      + "starts this long after the fade begins (a cross-fade); "
+      + "absent: it waits for the fade to end, then "
+      + "clearPauseMs. Overridable per score",
+  },
+  revealStyle: {
+    default: "sequence", scope: "play",
+    doc: "with fadeOut score / ofld / cycle: \"sequence\" shows "
+      + "the items one by one; \"together\" shows all the score's "
+      + "spels at once, then waits out the item durations. "
+      + "Overridable per score",
+  },
+  fadeWords: {
+    default: 5, scope: "play",
+    doc: "with fadeOut \"window\": each spel fades this many spels "
+      + "later. Legacy (no fadeOut): 0 wipes the field after "
+      + "each score; -1 leaves fading to the scores",
+  },
+  paraFadeWords: {
+    default: undefined, scope: "play",
+    doc: "array, one fadeWords value per paragraph (overrides "
+      + "fadeWords)",
+  },
+  charFades: {
+    default: true, scope: "play",
+    doc: "true: spels are revealed character by character; "
+      + "false: whole spels fade",
+  },
+  charIntervalMs: {
+    default: 80, scope: "play",
+    doc: "delay between characters when charFades",
+  },
+  durationScale: {
+    default: 1, scope: "play",
+    doc: "multiplier on item durations, fade delays, gaps and "
+      + "the per-character delay (2: twice as long; 0: at "
+      + "once); not on the CSS fade times (fadeMs ...). "
+      + "Overridable per score",
+  },
+  interScoreMs: {
+    default: 3000, scope: "play",
+    doc: "gap after each score (interParaMs / interFieldMs "
+      + "replace it when the score ends a paragraph / field). "
+      + "Overridable per score",
+  },
+  interFieldMs: {
+    default: 3000, scope: "play",
+    doc: "gap after a score that ends a field (ofld), in place "
+      + "of interScoreMs; needs spels recorded with their ofld. "
+      + "A config without it (legacy) uses interScoreMs. "
+      + "Overridable per score",
+  },
+  interParaMs: {
+    default: 1000, scope: "play",
+    doc: "gap after a score that ends a paragraph (cycleScores "
+      + "off), in place of interScoreMs; the end of a field "
+      + "outranks it. Overridable per score",
+  },
+  interCycleMs: {
+    default: 3000, scope: "play",
+    doc: "gap before the first score and at the end of each "
+      + "cycle (after the last score's own gap). The last score "
+      + "may override it",
+  },
+  creditsPauseMs: {
+    default: 0, scope: "play",
+    doc: "how long #byline is shown at the end of each cycle (0: "
+      + "not shown)",
+  },
+  fieldFadeMs: {
+    default: 2500, scope: "play",
+    doc: "how long the whole field takes to fade (the legacy "
+      + "fadeWords 0 wipe); play() waits this long plus 250 ms. "
+      + "Also the field's CSS transition (typeCss)",
+  },
+  clearPauseMs: {
+    default: 1300, scope: "play",
+    doc: "dark time after a whole unit fades out (fadeOut score "
+      + "/ ofld / cycle, or the legacy wipe), before the next "
+      + "score starts. A config without it (legacy) keeps 500. "
+      + "Overridable per score",
+  },
+  PRODUCTION: {
+    default: false, scope: "play",
+    doc: "true: no console logging from play()",
+  },
+  // --- page: applied by the pages through typeCss(config)
+  fadeMs: {
+    default: 1300, scope: "page",
+    doc: "CSS fade time of what fades: a character (charFades) "
+      + "or a whole spel. Replaces spelFadeMs and charFadeMs. "
+      + "Overridable per score",
+  },
+  fadeInMs: {
+    default: undefined, scope: "page",
+    doc: "fade time when a spel / character appears, in place of "
+      + "fadeMs. Overridable per score",
+  },
+  fadeOutMs: {
+    default: undefined, scope: "page",
+    doc: "fade time when it disappears, in place of fadeMs. "
+      + "Overridable per score",
+  },
+  // --- measure: the type the spels are measured in, and its layout
+  fontFamily: {
+    default: "Source Serif 4", scope: "measure",
+    doc: "family of the type (the notebook loads it from Google "
+      + "Fonts; the player must have the same file)",
+  },
+  fontWeight: {
+    default: 300, scope: "measure",
+    doc: "CSS font-weight, 100-900",
+  },
+  fontSizeVw: {
+    default: 3, scope: "measure",
+    doc: "font size of the galley and the field, in vw; spel "
+      + "positions scale with it",
+  },
+  lineHeight: {
+    default: 1.8, scope: "measure",
+    doc: "unitless line height",
+  },
+  opsz: {
+    default: 14, scope: "measure",
+    doc: "optical-size axis, fixed so that the type does not "
+      + "change with the window width; null leaves it to the "
+      + "browser",
+  },
+  ligatures: {
+    default: "no-common-ligatures", scope: "measure",
+    doc: "CSS font-variant-ligatures",
+  },
+  clmnRight: {
+    default: 0, scope: "measure",
+    doc: "vw added to the left of every spel in a clmn named "
+      + "\"right\"",
+  },
 };
 
-// Old names for current keys: createConfig() and play() accept both. Move to the new names when
-// you next touch a project's config; the old ones will keep working through 1.x.
+// Old names for current keys: createConfig() and play() accept both.
+// Move to the new names when you next touch a project's config; the
+// old ones will keep working through 1.x.
 const configAliases = {
   startingPoint: "startPara",
   slower: "durationScale", // (also inside each scoreSettings entry)
@@ -66,8 +230,9 @@ const configRetired = {
   numParas: "was never read by the engine (the number of paragraphs is paras.length)",
   scoredPauseMs: "was never read by the engine",
 };
-// spelFadeMs and charFadeMs are the old names of fadeMs (one of them applied, depending on charFades): they
-// are converted by normalizeConfig, in each score's settings too
+// spelFadeMs and charFadeMs are the old names of fadeMs (which one
+// applied depended on charFades): normalizeConfig converts them, in
+// each score's settings too
 const legacyFadeKeys = ["spelFadeMs", "charFadeMs"];
 const legacyTimeKeys = ["charInterval", "interCycle", "interScore", "scoredPause", "creditsPause"];
 
@@ -75,18 +240,20 @@ const legacyTimeKeys = ["charInterval", "interCycle", "interScore", "scoredPause
 const defaults = Object.freeze(Object.fromEntries(
   Object.entries(configSchema).filter(([, d]) => d.default !== undefined).map(([k, d]) => [k, d.default])));
 
-// The fade times in `o` (a config, or one score's settings), in ms: { inMs, outMs }, each undefined if `o`
-// says nothing. The old spelFadeMs / charFadeMs count as fadeMs: charFadeMs when characters fade
-// (charFades, the default), spelFadeMs when whole spels do.
+// The fade times in `o` (a config, or one score's settings), in ms:
+// { inMs, outMs }, each undefined if `o` says nothing. The old
+// spelFadeMs / charFadeMs count as fadeMs: charFadeMs when characters
+// fade (charFades, the default), spelFadeMs when whole spels do.
 function fadeTimes(o = {}, charFades = true) {
   const old = charFades ? (o.charFadeMs ?? o.spelFadeMs) : (o.spelFadeMs ?? o.charFadeMs);
   const f = o.fadeMs ?? old;
   return { inMs: o.fadeInMs ?? f, outMs: o.fadeOutMs ?? f };
 }
 
-// Maps legacy names to current ones, leaving everything else alone (no defaults are added). A key
-// given under both names keeps the current one. play() applies this itself, so a config that was
-// never passed through createConfig still works.
+// Maps legacy names to current ones, leaving everything else alone (no
+// defaults are added). A key given under both names keeps the current
+// one. play() applies this itself, so a config that never went through
+// createConfig still works.
 function normalizeConfig(config) {
   const out = { ...config };
   for (const [old, now] of Object.entries(configAliases)) {
@@ -96,7 +263,8 @@ function normalizeConfig(config) {
     }
   }
   for (const k of Object.keys(configRetired)) delete out[k];
-  // spelFadeMs / charFadeMs become fadeMs (which of the two depends on charFades); the current name wins
+  // spelFadeMs / charFadeMs become fadeMs (which one depends on
+  // charFades); the current name wins
   const charFades = out.charFades ?? defaults.charFades;
   const oldFade = (o) => {
     if (!legacyFadeKeys.some((k) => k in o)) return o;
@@ -117,14 +285,17 @@ function normalizeConfig(config) {
   return out;
 }
 
-// expandScoreSettings(perScore, n) -> the array that `scoreSettings` needs, for a piece of n scores, from an
-// object that names only the scores that differ (a notebook's config cell cannot know n, and JSON has no
-// holes). The keys, from the least to the most specific (a later one adds to an earlier, key by key):
+// expandScoreSettings(perScore, n) -> the array that `scoreSettings`
+// needs, for a piece of n scores, from an object that names only the
+// scores that differ (a notebook's config cell cannot know n, and JSON
+// has no holes). The keys, from the least to the most specific (a
+// later one adds to an earlier, key by key):
 //   "all"            every score
 //   "first", "last"  the first / the last score
-//   0, 1, 2 ...      that score (counted from 0); -1, -2 ... count from the end (-1 is the last)
-// A score that none of them names gets null, which play() skips. A key that is none of these, or an index
-// outside 0..n-1, throws: a typo would otherwise leave the setting off without a word.
+//   0, 1, 2 ...      that score (from 0); -1, -2 ... count from the end
+// A score that none of them names gets null, which play() skips. A key
+// that is none of these, or an index outside 0..n-1, throws: a typo
+// would otherwise leave the setting off without a word.
 function expandScoreSettings(perScore = {}, n) {
   if (!Number.isInteger(n) || n < 0) throw new Error(`scoringthespeltair: expandScoreSettings needs the number of scores, not ${n}`);
   const out = Array.from({ length: n }, () => ({}));
@@ -145,10 +316,11 @@ function expandScoreSettings(perScore = {}, n) {
   return out.map((o) => (Object.keys(o).length ? o : null));
 }
 
-// createConfig(overrides, { warn }) -> a new, plain object: the defaults, then the overrides.
-// Warns (console.warn, or options.warn) about retired keys, legacy time keys and keys it does not
-// know (a typo would otherwise be ignored silently). Keys it does not know are kept, so a project
-// may carry its own.
+// createConfig(overrides, { warn }) -> a new, plain object: the
+// defaults, then the overrides. Warns (console.warn, or options.warn)
+// about retired keys, legacy time keys and keys it does not know (a
+// typo would otherwise be ignored silently). Unknown keys are kept, so
+// a project may carry its own.
 function createConfig(overrides = {}, { warn = console.warn } = {}) {
   for (const [k, why] of Object.entries(configRetired))
     if (k in overrides) warn(`scoringthespeltair: config key ${k} ${why}; remove it`);
@@ -160,15 +332,17 @@ function createConfig(overrides = {}, { warn = console.warn } = {}) {
   return { ...defaults, ...normalizeConfig(overrides) };
 }
 
-// The settings that decide the measured positions, for exporting with the spel data and checking
-// against the player's: { fontFamily, fontWeight, fontSizeVw, lineHeight, opsz, ligatures, clmnRight }.
+// The settings that decide the measured positions, for exporting with
+// the spel data and checking against the player's: { fontFamily,
+// fontWeight, fontSizeVw, lineHeight, opsz, ligatures, clmnRight }.
 function measuredWith(config) {
   const c = { ...defaults, ...config };
   return Object.fromEntries(Object.entries(configSchema).filter(([, d]) => d.scope === "measure").map(([k]) => [k, c[k]]));
 }
 
-// Returns a list of differences (strings), empty if `measured` (as exported) matches `config`.
-// clmnRight is left out: it is baked into the spels' leftvw, and the player does not use it.
+// Returns a list of differences (strings), empty if `measured` (as
+// exported) matches `config`. clmnRight is left out: it is baked into
+// the spels' leftvw, and the player does not use it.
 function checkMeasuredWith(measured, config) {
   const mine = measuredWith(config);
   return Object.keys(mine)
@@ -176,24 +350,28 @@ function checkMeasuredWith(measured, config) {
     .map((k) => `${k}: the spels were measured at ${measured[k]}, this page uses ${mine[k]}`);
 }
 
-// --- legacy -----------------------------------------------------------------------------------------
-// Kept exactly as it was (plus the keys the engine read but did not list) so that a project that
-// spreads it plays exactly as before. New projects: createConfig.
+// --- legacy ----------------------------------------------------------
+// Kept as it was (plus the keys the engine read but did not list) so
+// that a project that spreads it plays as before. New projects:
+// createConfig.
 const defaultConfig = {
   running: true,
   charFades: true,
   charIntervalMs: 80,
-  fadeWords: 5, // zero for no autoFade; -1 for scores do fading
+  // 0 wipes the field after each score; -1 leaves fading to the scores
+  fadeWords: 5,
   // all times are in milliseconds (keys end in Ms)
   creditsPauseMs: 0, // zero for no credits
   interCycleMs: 3000,
   interScoreMs: 3000,
   scoredPauseMs: 1000, // not read by the engine (retired)
   slower: 1.3,
-  // set by the pages, not by the engine: the weight of the type the spels are measured and shown in
+  // set by the pages, not by the engine: the weight of the type the
+  // spels are measured and shown in
   fontWeight: 400,
-  // listed because the engine reads them. (No startPara here: a project that sets the old
-  // startingPoint on top of this would then lose to it; play() falls back to 0 itself.)
+  // listed because the engine reads them. (No startPara here: a
+  // project that sets the old startingPoint on top of this would lose
+  // to it; play() falls back to 0 itself.)
   cycleScores: false,
   PRODUCTION: false
 };

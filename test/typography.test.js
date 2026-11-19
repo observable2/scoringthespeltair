@@ -1,4 +1,5 @@
-// typeCss: the family names the bundled variable font first, then the plain name
+// typeCss: the family names the bundled variable font first, then the
+// plain name
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { typeCss } from "../typography.js";
