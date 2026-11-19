@@ -1,7 +1,7 @@
 import { sleep, msToTime } from "./timing.js";
 import { createDevLog } from "./dev.js";
 import { toggleSpel } from "./display.js";
-import { sumPauses, fadeDelay, readingTimes, resolveScore, scoreGap, cycleGap } from "./score.js";
+import { durationOf, sumDurations, fadeDelay, readingTimes, resolveScore, scoreGap, cycleGap } from "./score.js";
 import { shuffle } from "./math.js";
 import { defaults } from "./config.js";
 // options.generators: { name: (context, ...args) => score }, for scores that are generated each time
@@ -78,7 +78,7 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
     devLog("score:", sNum, "score items:", score.length);
     //
     // This is where we inner-loop through each item in the current score and
-    // display the string of its spel for the length of time in its pause property.
+    // display the string of its spel for the length of time in its duration property.
     const readTimes = readingTimes(score, spels); // for the fade-outs
     for (idx = 0; idx < score.length; idx++) {
       if (!config.running) break;
@@ -87,8 +87,8 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
       if (spelId === "AUTOFADE") {
         devLog("autoFade");
         // calculate autofade pause based on number of fadeWords
-        fadeWords = score[idx].pause; // repurposing the pause property for AUTOFADE spels
-        fadePause = sumPauses(score, idx, fadeWords);
+        fadeWords = score[idx].pause; // repurposing the pause property for AUTOFADE spels (a word count, not a duration)
+        fadePause = sumDurations(score, idx, fadeWords);
         devLog("In-score AUTOFADE of:", fadeWords, "at score:", sNum, "item:", idx);
         continue;
       }
@@ -101,7 +101,7 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
       }
       yieldMsg =
         loopMsg + `, score: ${sNum}, item: ${idx}, paraNum: ${paraNum}, id: ${spelId}, `;
-      yieldMsg += `string: '${str}', pause: ${score[idx].pause}`;
+      yieldMsg += `string: '${str}', duration: ${durationOf(score[idx])}`;
       // devLog(yieldMsg);
       // <<< (in other contexts:) yield yieldMsg;
       //
@@ -113,7 +113,7 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
         await toggleSpel(elem, config, toggleOpts);
         // DEBUG devLog(elem.innerHTML);
         // The fade-out is timed from now, by the reading time of this spel and the next fadeWords
-        // (fadeDelay), not by their score pauses where those carry end-of-unit whitespace (line
+        // (fadeDelay), not by their score durations where those carry end-of-unit whitespace (line
         // breaks ...): that delays what is faded IN next, never what is faded OUT.
         if (fadeWords > 0) fadePause = fadeDelay(readTimes, idx, fadeWords);
         if (fadePause > 0) {
@@ -122,7 +122,7 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
         }
       }
       // pause for both actual spels and PAUSE items
-      await sleep(score[idx].pause * scale); // pauses usually taken from the temporal data
+      await sleep(durationOf(score[idx]) * scale); // durations usually taken from the temporal data
     } // end of loop thru current score
     // pause between scores: wait for the last fade-out (scored: durationScale, the score's), then the
     // gap (not scored). The fade-outs run on their own clock, so they may already be done.

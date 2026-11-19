@@ -15,7 +15,7 @@
     // engine's version: "@main" follows the branch (cached, so it can lag a push, and is unreleased); a release tag
     // such as "@v0.5.0" pins it. Move to a new release by changing this one tag (the engine's
     // scripts/bump.js does it for a whole project; see the engine's README, "Releases").
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.7.1";
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.8.0";
     const load = async (f) => {
       try { return await import(`${engine}/${f}`); }
       catch (e) { throw new Error(`Could not load the engine file ${f} from ${engine} (offline, or tag missing?): ${e.message}`); }
@@ -480,10 +480,10 @@
   </script>
   <script id="5741" type="module">
     display(md`#### \`scores\`<br>&nbsp;`)
-    // one score (array of { id, pause }) per para, in text order. A spel's pause (ms) is spelTime:
+    // one score (array of { id, duration }) per para, in text order. A spel's duration (ms) is spelTime:
     // the time to read it (the whitespace inside a multi-word spel counts) plus the whitespace that
     // follows it in the galley, up to the next spel (the galley is white-space: pre, so its whitespace
-    // is respected). The last spel of a para carries no such gap and no end-of-para pause: what follows
+    // is respected). The last spel of a para carries no such gap and no end-of-para duration: what follows
     // the end of a para or field is the engine's to time, with config.interParaMs and interFieldMs
     // (a score may override them: see scoreSettings), not the score's.
     const readOptions = { whitespace: "respect" }
@@ -492,7 +492,7 @@
         const spel = spels.get(id);
         const following = Array.from(spels.values())[spel.index + 1];
         const gap = i === ids.length - 1 ? "" : layout.text.slice(spel.end, following ? following.start : undefined);
-        return { id, pause: spelTime(spel.string, gap, 1, readOptions) };
+        return { id, duration: spelTime(spel.string, gap, 1, readOptions) };
       }))
   </script>
   <script id="7001" type="text/markdown">
@@ -502,7 +502,7 @@
 
     1. *listens* to it with Whisper, a speech recognizer that runs in your browser (the model is downloaded once from Hugging Face and then cached; your audio never leaves your machine) and returns the words heard with their times;
     2. *aligns* the words heard to the words of the galley (Whisper is only a listener: the galley is the text, so a misheard word does not matter much);
-    3. gives each spel an **onset**, the second at which its first word begins. A spel's `pause` is the time from its onset to the next spel's onset;
+    3. gives each spel an **onset**, the second at which its first word begins. A spel's `duration` is the time from its onset to the next spel's onset;
     4. lets you **adjust the onsets paragraph by paragraph**, listening as you go.
 
     Spels that could not be matched to anything heard are marked *guessed* (in red): check those first. When you are satisfied, the Export cell below uses the performed scores in `scores.json` in place of the linear ones.
@@ -895,17 +895,17 @@
   </script>
   <script id="7009" type="module">
     display(md`#### \`performedScores\`<br>&nbsp;`)
-    // THE PERFORMED SCORES, in the same shape as the linear `scores`: one array of { id, pause } per
-    // para, `pause` in milliseconds. The pause of a spel is the time to the next spel's onset.
-    // The last spel of a para has no next spel in its para, so it keeps its linear pause (the time to
+    // THE PERFORMED SCORES, in the same shape as the linear `scores`: one array of { id, duration } per
+    // para, `duration` in milliseconds. The duration of a spel is the time to the next spel's onset.
+    // The last spel of a para has no next spel in its para, so it keeps its linear duration (the time to
     // read it: see `scores` above); what follows the end of a para or a field is the engine's to time.
     const performedScores = onsets
       ? scores.map((score) =>
-          score.map(({ id, pause }, k) => {
-            if (k === score.length - 1) return { id, pause }
+          score.map(({ id, duration }, k) => {
+            if (k === score.length - 1) return { id, duration }
             const here = onsets[spels.get(id).index]
             const next = onsets[spels.get(score[k + 1].id).index]
-            return { id, pause: Math.max(0, Math.round((next - here) * 1000)) } // never negative, if two onsets are out of order
+            return { id, duration: Math.max(0, Math.round((next - here) * 1000)) } // never negative, if two onsets are out of order
           })
         )
       : null
@@ -913,11 +913,11 @@
     // The scores the export uses: performed if there is a performance, else linear.
     const exportedScores = performedScores ?? scores
 
-    // Linear and performed pauses side by side, to see what the performance changed
+    // Linear and performed durations side by side, to see what the performance changed
     performedScores && display(Inputs.table(
-      performedScores.flatMap((score, p) => score.map(({ id, pause }, k) => ({
+      performedScores.flatMap((score, p) => score.map(({ id, duration }, k) => ({
         para: layout.order.para[p], spel: spels.get(id).string.replace(/\s+/g, " "),
-        linearMs: scores[p][k].pause, performedMs: pause
+        linearMs: scores[p][k].duration, performedMs: duration
       }))), { rows: 12 }))
   </script>
   <script id="5860" type="text/html">
@@ -1061,7 +1061,7 @@
     const piece = {
       "spels.json": Array.from(spels.entries()), // [[id, spel], ...]: the player builds a Map from it
       "paras.json": paraList, // [[spel ids of para 1], [para 2], ...] in text order
-      // [[{id, pause}, ...] per para]. scores.json is what the player reads: timed from the aligned
+      // [[{id, duration}, ...] per para]. scores.json is what the player reads: timed from the aligned
       // performance if there is one (see above), else the linear timeToRead scores.
       "scores.json": exportedScores,
       // the linear scores from timeToRead, always available, whether or not there is a performance
@@ -1119,7 +1119,7 @@
     ### Playback
     What the engine does with the export (`play(config, fieldElem, spels, paras, scores)`):
 
-    - **Scores.** `scores` is an array of scores, one per para; a score is an array of `{ id, pause }`: show the spel `id`, wait `pause` ms (times `durationScale`), go on. The default scores above are linear (each spel in text order, `pause` from `spelTime`); edit them, or write your own, to compose the timing. Two special items: `{ id: "PAUSE", pause }` waits without showing anything, and `{ id: "AUTOFADE", pause: n }` sets `fadeWords` to `n` from here on.
+    - **Scores.** `scores` is an array of scores, one per para; a score is an array of `{ id, duration }`: show the spel `id`, wait `duration` ms (times `durationScale`), go on. The default scores above are linear (each spel in text order, `duration` from `spelTime`); edit them, or write your own, to compose the timing. Two special items: `{ id: "PAUSE", duration }` waits without showing anything, and `{ id: "AUTOFADE", pause: n }` sets `fadeWords` to `n` from here on.
     - **Fading.** `fadeWords` > 0: each spel is faded again `fadeWords` spels after it (a moving window); `0`: the paragraph is shown, then removed as a whole; `-1`: the scores do their own fading (they toggle spels on and off); `paraFadeWords` gives one value per paragraph.
     - **Characters.** With `charFades`, each spel is revealed one character at a time, `charIntervalMs` apart (the engine's `splitIntoChars` prepares the field).
     - **Several scores for one poem.** `cycleScores: true` plays every score in order in a single cycle. `scoreSettings[n]` then sets, for score `n`: `durationScale`, `interScoreMs` (the gap after it), `interParaMs`, `interFieldMs`, `interCycleMs` (the gaps at the end of a para, a field, the cycle, if the score ends one), `effect` (the class toggled: `"visible"` by default, or another such as `"glow"`, which the page's CSS defines: see `.glow` above) and `shuffle` (play the items in a new random order each time). See `shi/nbks/data/maple-bridge/config.js` for ten scores in use.
@@ -1167,7 +1167,7 @@
     | `addSpansTo(galley)` | copy of the galley with every spel wrapped in a span, `clmn:right` really offset, each clmn lifted to the top of its ofld, a rule before each ofld; returns `{elem, parsed, cont}`; shown in the html cell below `spanned` |
     | `getSpelArray(spanned)` | measures the bounding box of each span in that copy without the rules; returns the spel objects |
     | `mapParaSpels(spanned)` → `layout` | groups spels: `{text, spels, para, clmn, ofld, sctn, chpt}`, each group `{name: [ids]}`; `spels`, `paras` derive from it |
-    | `scores` | one array of `{id, pause}` per para, pauses from the engine's `spelTime` |
+    | `scores` | one array of `{id, duration}` per para, durations from the engine's `spelTime` |
     | preview cell | each ofld redrawn from the data, bounding boxes outlined, plus a table; a check, can be deleted |
 
     **Spel data:** `leftvw`, `topvw`, `widthvw`, `heightvw` give the rendered **bounding box** of the spel's span in vw relative to its container (left is measured on the offset display, top on the display with each clmn lifted to the top of its ofld, so a clmn starts again at 0 as an ofld does; with oflds themselves it is virtual, from the ofld's top-most box). `html` is an absolutely positioned span placed at `leftvw`, `topvw`. Ink (glyph overhangs) is deliberately not measured: the data goes to the player as boxes, and ink is dealt with only when a piece needs it. `indentvw` is how far the first line of a multi-line spel starts to the right of the box's left edge (0 for one line); `html` uses it as `text-indent`, and has `white-space:pre`. Also `id`, `index`, `string`, `start`, `end`, `implicit`, `para`, `clmn`, `ofld`, `sctn`, `chpt`.

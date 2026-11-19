@@ -11,7 +11,7 @@ const setup = () => {
   globalThis.document = dom.window.document;
   const spels = new Map(["a", "b", "c"].map((id) => [id, { string: id }]));
   const paras = [["a", "b"], ["c"]];
-  const scores = [[{ id: "a", pause: 1 }, { id: "b", pause: 1 }], [{ id: "c", pause: 1 }]];
+  const scores = [[{ id: "a", duration: 1 }, { id: "b", duration: 1 }], [{ id: "c", duration: 1 }]];
   return { field: dom.window.document.getElementById("field"), spels, paras, scores };
 };
 const base = { running: true, PRODUCTION: true, charFades: false, fadeWords: -1, durationScale: 1, interCycleMs: 1, interScoreMs: 1, creditsPauseMs: 0 };
@@ -83,9 +83,9 @@ test("play(): a score may name a generator (options.generators), made anew each 
   const seen = record();
   let made = 0;
   const generators = {
-    ba: (ctx, first) => { made++; return [{ id: first, pause: 1 }, { id: "b", pause: 1 }, { id: first, pause: 1 }]; },
+    ba: (ctx, first) => { made++; return [{ id: first, duration: 1 }, { id: "b", duration: 1 }, { id: first, duration: 1 }]; },
   };
-  const scores = [[{ id: "c", pause: 1 }], { generator: "ba", args: ["a"] }];
+  const scores = [[{ id: "c", duration: 1 }], { generator: "ba", args: ["a"] }];
   const config = { ...base, cycleScores: true };
   play(config, field, spels, paras, scores, { generators });
   await new Promise((r) => setTimeout(r, 150));

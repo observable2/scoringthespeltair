@@ -1,27 +1,33 @@
 import { mod } from "./math.js";
 import { spelTime } from "./timetoread.js";
 
-// sums the pauses of the n score items following idx (wrapping around the score);
+// The duration of a score item, in ms: the time it holds before the next item. A score item is
+// { id, duration }. Scores made before the rename call it `pause`, which is still read, so they play
+// unchanged (scripts/migrate-scores-to-duration.js renames it in a scores.json).
+const durationOf = (item) => item.duration ?? item.pause;
+
+// sums the durations of the n score items following idx (wrapping around the score);
 // with skipPauses, "PAUSE" items contribute nothing
-function sumPauses(score, idx, n, { skipPauses = false } = {}) {
+function sumDurations(score, idx, n, { skipPauses = false } = {}) {
   let total = 0;
   for (let i = 0; i < n; ++i) {
     const item = score[mod(idx + i + 1, score.length)];
-    if (!(skipPauses && item.id === "PAUSE")) total += item.pause;
+    if (!(skipPauses && item.id === "PAUSE")) total += durationOf(item);
   }
   return total;
 }
+const sumPauses = sumDurations; // the former name
 
 // Reading times for fading out: for each item of a score, how long it takes to read, WITHOUT the
-// end-of-unit time a score pause may carry (the whitespace after a line's last spel: a line break ...).
-// Those pauses belong before the next unit is faded IN, not to when words fade OUT.
+// end-of-unit time a score item's duration may carry (the whitespace after a line's last spel: a line break ...).
+// Those durations belong before the next unit is faded IN, not to when words fade OUT.
 //  - A spel in the middle of a line (the next item is a spel on the same line, by `topvw`, para,
-//    clmn and ofld) has no such whitespace: its pause IS its reading time, as scored or recorded.
+//    clmn and ofld) has no such whitespace: its duration IS its reading time, as scored or recorded.
 //  - A spel that ends a line (or the score, or has no recorded position) is estimated (`spelTime` of
-//    its string, no gap) and scaled by this score's pace: the sum of its mid-line pauses over the sum
-//    of their estimates. A linear score (pauses from spelTime) has pace 1; a score timed from a
+//    its string, no gap) and scaled by this score's pace: the sum of its mid-line durations over the sum
+//    of their estimates. A linear score (durations from spelTime) has pace 1; a score timed from a
 //    recording has the pace of that recording.
-//  - "PAUSE" and "AUTOFADE" items are not spels and read in 0. A spel not in `spels` reads in its pause.
+//  - "PAUSE" and "AUTOFADE" items are not spels and read in 0. A spel not in `spels` reads in its duration.
 const fadeReadOptions = { whitespace: "respect" };
 function readingTimes(score, spels) {
   const isSpel = (item) => item.id !== "PAUSE" && item.id !== "AUTOFADE";
@@ -34,16 +40,16 @@ function readingTimes(score, spels) {
   const midLine = score.map((item, i) => {
     const here = info(item);
     const next = score[i + 1];
-    const mid = here?.string !== undefined && item.pause > 0 && next && isSpel(next) && sameLine(here, info(next));
-    if (mid) { recorded += item.pause; estimated += estimate(here); }
+    const mid = here?.string !== undefined && durationOf(item) > 0 && next && isSpel(next) && sameLine(here, info(next));
+    if (mid) { recorded += durationOf(item); estimated += estimate(here); }
     return mid;
   });
   const pace = estimated > 0 ? recorded / estimated : 1;
   return score.map((item, i) => {
     if (!isSpel(item)) return 0;
     const here = info(item);
-    if (here?.string === undefined) return item.pause;
-    return midLine[i] ? item.pause : Math.round(estimate(here) * pace);
+    if (here?.string === undefined) return durationOf(item);
+    return midLine[i] ? durationOf(item) : Math.round(estimate(here) * pace);
   });
 }
 
@@ -55,21 +61,21 @@ const fadeDelay = (times, idx, n) => {
   return total;
 };
 
-// A score item that shows nothing and waits `ms`: { id: "PAUSE", pause: ms }. A whole score may be
+// A score item that shows nothing and waits `ms`: { id: "PAUSE", duration: ms }. A whole score may be
 // one such item (a breath between two scores).
-const pauseItem = (ms) => ({ id: "PAUSE", pause: ms });
+const pauseItem = (ms) => ({ id: "PAUSE", duration: ms });
 
-// The same spels again, each with no pause. Played after (or as) a score, they toggle every one of
+// The same spels again, each with no duration. Played after (or as) a score, they toggle every one of
 // those spels at once: the way to fade what a score has shown, or to show a whole verse in one go.
 // `items` are score items; only their ids are used.
-const toggleItems = (items) => items.map(({ id }) => ({ id, pause: 0 }));
+const toggleItems = (items) => items.map(({ id }) => ({ id, duration: 0 }));
 
-// A score from recorded timings: one item per spel, its pause the time from the start of that word
-// to the start of the next (the last word: its own length), plus `extraMs` to every pause.
+// A score from recorded timings: one item per spel, its duration the time from the start of that word
+// to the start of the next (the last word: its own length), plus `extraMs` to every duration.
 //   timings  [{ start, end, word? }, ...] in SECONDS, as a forced aligner or a hand-timed reading
 //            gives them; the conversion to milliseconds is made here, at the boundary
 //   ids      the spel ids, in the same order (without them each timing's `word` is the id)
-//   extraMs  added to every pause (default 0): a reader who is slower than the recording
+//   extraMs  added to every duration (default 0): a reader who is slower than the recording
 // (This is what `alignedSpels` did in the Framework notebooks, and what reading's timings are.)
 function scoreFromTimings(timings, { ids, extraMs = 0 } = {}) {
   if (ids && ids.length !== timings.length)
@@ -79,11 +85,11 @@ function scoreFromTimings(timings, { ids, extraMs = 0 } = {}) {
     if (id === undefined) throw new Error(`scoringthespeltair: scoreFromTimings: timing ${i} has no id (give ids, or a word in each timing)`);
     const next = timings[i + 1];
     const seconds = next ? next.start - t.start : t.end - t.start;
-    return { id, pause: Math.round(seconds * 1000) + extraMs };
+    return { id, duration: Math.round(seconds * 1000) + extraMs };
   });
 }
 
-// A score of scores.json is an array of { id, pause } items. It may instead NAME a generator, so that
+// A score of scores.json is an array of { id, duration } items. It may instead NAME a generator, so that
 // a piece can make a new, quasi-random score each time it comes round (a score is JSON; code is not):
 //   "name"                          the generator called `name`
 //   { generator: "name", args: [] } the same, with arguments
@@ -127,4 +133,4 @@ function scoreGap(sNum, { config, settings = {}, paras, spels }) {
 // It comes after the score's own gap, as it always has.
 const cycleGap = ({ config, settings = {} }) => settings.interCycleMs ?? config.interCycleMs;
 
-export { scoreGap, cycleGap, sumPauses, fadeDelay, readingTimes, pauseItem, toggleItems, scoreFromTimings, resolveScore };
+export { scoreGap, cycleGap, durationOf, sumDurations, sumPauses, fadeDelay, readingTimes, pauseItem, toggleItems, scoreFromTimings, resolveScore };

@@ -108,7 +108,7 @@
     // THE DATA exported by the notebook (see "Export" in scoring-template.html), from nbks/data/
     const spels = new Map(await FileAttachment("./data/spels.json").json()); // id -> spel
     const paras = await FileAttachment("./data/paras.json").json();   // spel ids, by paragraph
-    const scores = await FileAttachment("./data/scores-timeToRead.json").json(); // [{ id, pause }, ...] by paragraph
+    const scores = await FileAttachment("./data/scores-timeToRead.json").json(); // [{ id, duration }, ...] by paragraph
     const measuredWith = await FileAttachment("./data/measured.json").json(); // the type the spels were measured at
 
     // Puts the spels in the field (split into characters if config.charFades), centres the field, and

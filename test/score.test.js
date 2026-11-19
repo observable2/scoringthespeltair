@@ -1,7 +1,7 @@
 // score.js helpers: scoreFromTimings, toggleItems, pauseItem, resolveScore
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scoreFromTimings, toggleItems, pauseItem, resolveScore, sumPauses } from "../score.js";
+import { scoreFromTimings, toggleItems, pauseItem, resolveScore, sumDurations, sumPauses, durationOf, readingTimes } from "../score.js";
 
 test("scoreFromTimings: start-to-next-start in ms, the last word its own length, plus extraMs", () => {
   const timings = [
@@ -10,10 +10,10 @@ test("scoreFromTimings: start-to-next-start in ms, the last word its own length,
     { start: 4.73, end: 5.44, word: "nameless" },
   ];
   assert.deepEqual(scoreFromTimings(timings), [
-    { id: "low", pause: 500 }, { id: "cloud", pause: 1730 }, { id: "nameless", pause: 710 },
+    { id: "low", duration: 500 }, { id: "cloud", duration: 1730 }, { id: "nameless", duration: 710 },
   ]);
   assert.deepEqual(scoreFromTimings(timings, { ids: ["a", "b", "c"], extraMs: 200 }), [
-    { id: "a", pause: 700 }, { id: "b", pause: 1930 }, { id: "c", pause: 910 },
+    { id: "a", duration: 700 }, { id: "b", duration: 1930 }, { id: "c", duration: 910 },
   ]);
 });
 
@@ -23,21 +23,21 @@ test("scoreFromTimings: mistakes are named", () => {
 });
 
 test("toggleItems and pauseItem", () => {
-  assert.deepEqual(toggleItems([{ id: "a", pause: 300 }, { id: "b", pause: 50 }]), [{ id: "a", pause: 0 }, { id: "b", pause: 0 }]);
-  assert.deepEqual(pauseItem(100), { id: "PAUSE", pause: 100 });
-  assert.equal(sumPauses([pauseItem(5), { id: "a", pause: 7 }], 1, 1, { skipPauses: true }), 0); // wraps to the PAUSE
+  assert.deepEqual(toggleItems([{ id: "a", duration: 300 }, { id: "b", duration: 50 }]), [{ id: "a", duration: 0 }, { id: "b", duration: 0 }]);
+  assert.deepEqual(pauseItem(100), { id: "PAUSE", duration: 100 });
+  assert.equal(sumDurations([pauseItem(5), { id: "a", duration: 7 }], 1, 1, { skipPauses: true }), 0); // wraps to the PAUSE
 });
 
 test("resolveScore: an array is returned as it is; a name or { generator, args } is generated", () => {
-  const arr = [{ id: "a", pause: 1 }];
+  const arr = [{ id: "a", duration: 1 }];
   assert.equal(resolveScore(arr), arr);
   const seen = [];
   const generators = {
-    g: (ctx, ...args) => { seen.push({ ctx, args }); return [{ id: ctx.spels.get("x").string, pause: 2 }]; },
+    g: (ctx, ...args) => { seen.push({ ctx, args }); return [{ id: ctx.spels.get("x").string, duration: 2 }]; },
   };
   const context = { spels: new Map([["x", { string: "x" }]]), scoreNum: 4 };
-  assert.deepEqual(resolveScore("g", context, generators), [{ id: "x", pause: 2 }]);
-  assert.deepEqual(resolveScore({ generator: "g", args: [1, true] }, context, generators), [{ id: "x", pause: 2 }]);
+  assert.deepEqual(resolveScore("g", context, generators), [{ id: "x", duration: 2 }]);
+  assert.deepEqual(resolveScore({ generator: "g", args: [1, true] }, context, generators), [{ id: "x", duration: 2 }]);
   assert.deepEqual(seen[0].args, []);
   assert.deepEqual(seen[1].args, [1, true]);
   assert.deepEqual(seen[1].ctx.args, [1, true]);
@@ -57,14 +57,25 @@ test("readingTimes / fadeDelay: fade-outs run on reading time, not on the line b
   const at = (id, topvw) => [id, { string: id + id, para: "p", clmn: "l", ofld: "o", topvw, heightvw: 5 }];
   const spels = new Map([at("a", 0), at("b", 0), at("c", 5), at("d", 5)]); // a b / c d: b ends line 1, d ends the score
   // linear score: b's pause carries a 1000 ms line break
-  const linear = [{ id: "a", pause: read }, { id: "b", pause: read + 1000 }, { id: "c", pause: read }, { id: "d", pause: read }];
+  const linear = [{ id: "a", duration: read }, { id: "b", duration: read + 1000 }, { id: "c", duration: read }, { id: "d", duration: read }];
   assert.deepEqual(readingTimes(linear, spels), [read, read, read, read]);
   assert.equal(fadeDelay(readingTimes(linear, spels), 0, 2), 3 * read);
   // recorded at half the estimated pace: mid-line pauses are used as they are, line ends are scaled
-  const slow = [{ id: "a", pause: 2 * read }, { id: "b", pause: 3000 }, { id: "c", pause: 2 * read }, { id: "d", pause: 9999 }];
+  const slow = [{ id: "a", duration: 2 * read }, { id: "b", duration: 3000 }, { id: "c", duration: 2 * read }, { id: "d", duration: 9999 }];
   assert.deepEqual(readingTimes(slow, spels), [2 * read, 2 * read, 2 * read, 2 * read]);
   const withPause = [linear[0], pauseItem(500), ...linear.slice(1)];
   assert.equal(readingTimes(withPause, spels)[1], 0);
   assert.equal(fadeDelay(readingTimes(linear, spels), 3, 1), 2 * read); // wraps
-  assert.deepEqual(readingTimes([{ id: "x", pause: 70 }], spels), [70]); // unknown spel: its pause
+  assert.deepEqual(readingTimes([{ id: "x", duration: 70 }], spels), [70]); // unknown spel: its pause
+});
+
+test("a score item's `pause` (the former name) is read as its duration", () => {
+  assert.equal(durationOf({ id: "a", pause: 7 }), 7);
+  assert.equal(durationOf({ id: "a", duration: 9 }), 9);
+  assert.equal(durationOf({ id: "a", duration: 0, pause: 5 }), 0); // duration wins, even at 0
+  assert.equal(sumDurations([{ id: "a", pause: 3 }, { id: "b", duration: 4 }], 0, 2), 7);
+  assert.equal(sumPauses, sumDurations);
+  const spels = new Map([["a", { string: "a" }]]);
+  assert.deepEqual(readingTimes([{ id: "x", pause: 70 }], spels), [70]);
+  assert.deepEqual(readingTimes([{ id: "x", duration: 70 }], spels), [70]);
 });

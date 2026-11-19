@@ -12,7 +12,7 @@ or import individual files:
 - `scoringthespeltair/play.js` → `play(config, fieldElem, spels, paras, scores, { generators })` (the last argument is optional)
 - `scoringthespeltair/display.js` → `toggleSpel`, `splitIntoChars` (wraps each character of every spel in a `.char` span, for `charFades`)
 - `scoringthespeltair/center.js` → `centerField` (browser only; see [Centring on the extent](#centring-on-the-extent))
-- `scoringthespeltair/score.js` → `sumPauses`, `pauseItem`, `toggleItems`, `scoreFromTimings`, `resolveScore` (see [Generated scores](#generated-scores-and-timed-scores))
+- `scoringthespeltair/score.js` → `sumDurations`, `durationOf`, `pauseItem`, `toggleItems`, `scoreFromTimings`, `resolveScore` (see [Generated scores](#generated-scores-and-timed-scores))
 - `scoringthespeltair/text.js` → `normalizeToken` (markdown-aware token cleanup; default `normalize` for the RiTa estimator)
 - `scoringthespeltair/timetoread.js` → `timeToRead`, `wordTime`, `whitespaceTime`, `spelTime`, `timeToReadDefaults` (no dependencies; markup handling is in the internal `markup.js`)
 - `scoringthespeltair/timetoread-rita.js` → `timeToReadRita`, `createTimeToReadRita`, `timeToReadRitaDefaults` (needs `rita`; not in the root export)
@@ -150,7 +150,7 @@ needs each score to behave differently. Two config keys, both optional:
 - `cycleScores: true`: one cycle plays **every** score in `scores.json`, in order (the default is one
   score per paragraph, `paras[i]` with `scores[i]`). There is then a single "paragraph" to the cycle.
 - `scoreSettings`: an array indexed by score number; each entry may hold any of
-  - `durationScale`: replaces `config.durationScale` for this score: its pauses, its scored fade-outs and (with `charFades`)
+  - `durationScale`: replaces `config.durationScale` for this score: its durations, its scored fade-outs and (with `charFades`)
     the per-character delay. `0` plays the score at once.
   - `interScoreMs`: replaces `config.interScoreMs`, the gap after this score. It is scaled by the *config's*
     `durationScale`, not the score's.
@@ -168,7 +168,7 @@ A score with no entry (or no `scoreSettings`) behaves exactly as before. See `sh
 Added for *uchaf*, usable by any piece.
 
 **A score that is made anew each time it comes round.** A score in `scores.json` is an array of
-`{ id, pause }` items. It may instead *name a generator*, so that a piece can play a different,
+`{ id, duration }` items (`duration` in ms; scores made before it was renamed from `pause` still play: the engine reads either, `durationOf` in `score.js`, and `scripts/migrate-scores-to-duration.js` renames it in a `scores.json`; `AUTOFADE` items keep `pause`, which holds a word count). It may instead *name a generator*, so that a piece can play a different,
 quasi-random score on every pass (shuffled pairs, a chorus with a randomly chosen word ...). JSON cannot hold code,
 so the generators are the player page's own, handed to `play()`:
 
@@ -179,7 +179,7 @@ play(config, fieldElem, spels, paras, scores, { generators });
 ```
 
 A generator is `(context, ...args) => score`. `context` is `{ spels, paras, scores, config, scoreNum, args }`
-(the same objects `play()` has, so a generator can read the pauses of other scores, e.g. the timed read-in).
+(the same objects `play()` has, so a generator can read the durations of other scores, e.g. the timed read-in).
 It must return an array of items; the engine's `shuffle` and the item helpers below are what generators are made of.
 A name `play()` was not given, or a result that is not an array, throws with the score number in the message.
 `scoreSettings` still applies to a generated score (`shuffle`, `effect`, `durationScale`, `interScoreMs`).
@@ -187,24 +187,24 @@ Scores that are plain arrays play exactly as before; `options` can be left out.
 
 **Item helpers** (`score.js`):
 
-- `pauseItem(ms)` → `{ id: "PAUSE", pause: ms }`.
-- `toggleItems(items)` → the same spels again with `pause: 0`: played after a score (or as one) they toggle all of them at once.
+- `pauseItem(ms)` → `{ id: "PAUSE", duration: ms }`.
+- `toggleItems(items)` → the same spels again with `duration: 0`: played after a score (or as one) they toggle all of them at once.
   This is how to fade what a score showed, or to show a whole verse in one go.
 - `scoreFromTimings(timings, { ids, extraMs })` → a score from recorded timings, `timings` being
-  `[{ start, end, word? }]` in **seconds**: each pause is the time from the start of a word to the start of the next
-  (the last word: its own length), in whole milliseconds, plus `extraMs` on every pause. `ids` gives the spel ids in order
+  `[{ start, end, word? }]` in **seconds**: each duration is the time from the start of a word to the start of the next
+  (the last word: its own length), in whole milliseconds, plus `extraMs` on every duration. `ids` gives the spel ids in order
   (otherwise each timing's `word` is the id) and a mismatch in length throws.
 
 ## When spels fade out (`fadeWords` > 0)
 
 A spel fades `fadeWords` spels after it appears: timed from the moment it appears, by the **reading time** of
-itself and of the `fadeWords` spels after it (`readingTimes` and `fadeDelay` in `score.js`). A score pause can carry
+itself and of the `fadeWords` spels after it (`readingTimes` and `fadeDelay` in `score.js`). A score item's duration can carry
 the whitespace after a line's last spel (a line break ...); that end-of-unit time delays what is faded **in** next,
 never what is faded **out**. So:
 
-- a spel in the middle of a line (the next item is a spel on the same line) reads in its **pause**, as scored or recorded;
+- a spel in the middle of a line (the next item is a spel on the same line) reads in its **duration**, as scored or recorded;
 - a spel that ends a line or the score reads in its `spelTime` estimate (no gap), scaled by the score's **pace**: the
-  sum of its mid-line pauses over the sum of their estimates. A linear score has pace 1; one timed from a recording has the
+  sum of its mid-line durations over the sum of their estimates. A linear score has pace 1; one timed from a recording has the
   recording's pace. Spels without a recorded position (`topvw`) count as line ends;
 - `PAUSE` and `AUTOFADE` items add nothing.
 
@@ -219,7 +219,7 @@ the paragraph). `interCycleMs` still follows the cycle's last score, after its o
 own `scoreSettings` entry comes first (`interFieldMs`, `interParaMs`, `interCycleMs`, or its `interScoreMs`, which
 beats the config's unit gaps), then the config's, so no override means the config's value. A config that lacks
 `interParaMs`/`interFieldMs` (the legacy `defaultConfig`) gives `interScoreMs` throughout, as before; spels without
-a recorded `ofld` never end a field. The scores should not themselves carry the pause for the end of a unit
+a recorded `ofld` never end a field. The scores should not themselves carry the duration for the end of a unit
 (the whitespace after a paragraph's or field's last spel): that is what these gaps are for.
 
 ## Centring on the extent
@@ -268,7 +268,7 @@ JS re-measures only when glyph widths can change: when fonts finish loading
 
 ## Units: milliseconds everywhere
 
-Every time value in this library (`sleep`, `msToTime`, config keys, score `pause`
+Every time value in this library (`sleep`, `msToTime`, config keys, score `duration`
 values, reading-time estimates) is in **milliseconds**. Config keys end in `Ms`
 (`interCycleMs`, `interScoreMs`, `creditsPauseMs`, `charIntervalMs`, `scoredPauseMs`);
 `durationScale` and `fadeWords` are unitless. Convert at the boundary (e.g. recorded word
@@ -389,9 +389,9 @@ Timestamped readings (word, start, end in seconds) exist in these places:
 - `.../framework/crawlitsimage/src/data/limageinhii.json` (4,458 words, 22 segments)
 
 `local-data/` (gitignored, so absent on a fresh clone) holds `timestamps-ms.json`, all three
-consolidated into scores-shaped ms data (`id`, `pause`, plus `word`, `start`, `end`, and
+consolidated into scores-shaped ms data (`id`, `duration`, plus `word`, `start`, `end`, and
 `lineBreakAfter` where a `spels.json` layout exists), and `build-timestamps.mjs`, which
-rebuilds it. `pause` = start of a word to start of the next, as `alignedSpels()` computes it.
+rebuilds it. `duration` = start of a word to start of the next, as `alignedSpels()` computes it.
 Note the projects' own `scores.json` files can be hundredths or hand-estimated; use the
 timestamps, not the scores.
 
