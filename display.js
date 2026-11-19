@@ -32,4 +32,13 @@ async function toggleSpel(elem, config, { effect = "visible", durationScale, slo
   }
 }
 
-export { toggleSpel, splitIntoChars };
+// hides a spel (removes `effect`, default "visible"): unlike toggleSpel it never shows one that is
+// hidden already, so it is safe for fading out a set of spels. All its characters go at once; the
+// CSS transitions (spelFadeMs, charFadeMs) make it a fade.
+function hideSpel(elem, config, { effect = "visible" } = {}) {
+  if (!elem) return;
+  if (config.charFades) for (const char of elem.children) char.classList.remove(effect);
+  else elem.classList.remove(effect);
+}
+
+export { toggleSpel, hideSpel, splitIntoChars };

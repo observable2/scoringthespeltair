@@ -112,6 +112,37 @@ function resolveScore(entry, context = {}, generators = {}) {
   return score;
 }
 
+// The settings that refine a fade-out of a whole score / ofld / cycle, the score's own first, then the
+// config (see the README, "Fading out"). Times are ms, before durationScale:
+//   fadeOrder     "shown" (the order they appeared), "reverse", "random": the order of a "sequence" fade
+//   fadeStaggerMs a fixed step between spels of a "sequence" fade, in place of each item's duration
+//   holdMs        the least time the whole unit stays showing, from when its last spel appeared, before it fades
+//   overlapMs     the next score starts this long after the fade begins, whatever is left of it fading on
+//                 (undefined: the fade is over, plus clearPauseMs, before the next score starts)
+//   revealStyle   "sequence" (the default: the items appear one by one) or "together" (all the score's spels at once, then
+//                 its durations are waited out)
+function fadeOptions(config, settings = {}) {
+  const pick = (k, d) => settings[k] ?? config[k] ?? d;
+  return { order: pick("fadeOrder", "shown"), staggerMs: pick("fadeStaggerMs"), holdMs: pick("holdMs", 0),
+    overlapMs: pick("overlapMs"), reveal: pick("revealStyle", "sequence") };
+}
+
+// Does the score sNum end a field (an ofld)? Yes if the next paragraph's first spel is in another
+// ofld; spels without an `ofld` (data from before it was recorded) never end one (see scoreGap).
+const endsField = (sNum, { paras, spels }) => {
+  const ofldOf = (para) => spels?.get(para?.[0])?.ofld;
+  const here = ofldOf(paras?.[sNum]), next = ofldOf(paras?.[sNum + 1]);
+  return here !== undefined && next !== undefined && here !== next;
+};
+
+// Does the score sNum end the ofld it is in, for fading it out? Like endsField, but a score also ends
+// its ofld when the spels carry no ofld (nothing says otherwise) or when no paragraph follows it.
+const endsOfld = (sNum, { paras, spels }) => {
+  const ofldOf = (para) => spels?.get(para?.[0])?.ofld;
+  const here = ofldOf(paras?.[sNum]), next = ofldOf(paras?.[sNum + 1]);
+  return here === undefined || next === undefined || here !== next;
+};
+
 // The gap after a score, in ms (before durationScale). A score that ends a unit with its own gap
 // uses that gap in place of interScoreMs: the end of a field (interFieldMs) outranks the end of a
 // paragraph (interParaMs). The score's own settings come first, then the config:
@@ -122,15 +153,34 @@ function resolveScore(entry, context = {}, generators = {}) {
 // `ofld` (data from before it was recorded) never end one.
 function scoreGap(sNum, { config, settings = {}, paras, spels }) {
   if (config.cycleScores || !paras?.[sNum]) return settings.interScoreMs ?? config.interScoreMs;
-  const ofldOf = (para) => spels?.get(para?.[0])?.ofld;
-  const here = ofldOf(paras[sNum]), next = ofldOf(paras[sNum + 1]);
-  const endsField = here !== undefined && next !== undefined && here !== next;
-  if (endsField) return settings.interFieldMs ?? settings.interScoreMs ?? config.interFieldMs ?? config.interScoreMs;
+  if (endsField(sNum, { paras, spels })) return settings.interFieldMs ?? settings.interScoreMs ?? config.interFieldMs ?? config.interScoreMs;
   return settings.interParaMs ?? settings.interScoreMs ?? config.interParaMs ?? config.interScoreMs;
+}
+
+// What fades the spels out, and how (see the README, "Fading"). The score's own settings come first,
+// then the config:
+//   fadeOut   "window"  each spel fades fadeWords spels after it (n = config.fadeWords)
+//             "scored"  the engine never fades: the score's own items do (toggleItems)
+//             "score"   the spels of a score fade after its last item and its gap (interScoreMs ...)
+//             "ofld"    the spels of an ofld fade after the score that ends it and its gap (interFieldMs)
+//             "cycle"   the spels of the whole cycle fade after its last score and its gap
+//   fadeStyle "together" (default) all at once; "sequence": in the order shown, each after its item's duration
+// (fadeOptions, below, has the settings that refine "score" / "ofld" / "cycle".)
+// A config without fadeOut is read as before, from fadeWords: n > 0 "window"; 0 "field", the old
+// wipe of the whole #field after each score (kept for old projects); -1 "scored" (any other value
+// is "window", which fades nothing without a positive fadeWords). `legacy` is true then.
+const FADE_OUTS = ["window", "scored", "score", "ofld", "cycle"];
+function resolveFade(config, settings = {}) {
+  const style = settings.fadeStyle ?? config.fadeStyle ?? "together";
+  const out = settings.fadeOut ?? config.fadeOut;
+  if (FADE_OUTS.includes(out)) return { out, style, legacy: false };
+  if (out !== undefined) console.warn(`scoringthespeltair: fadeOut "${out}" is not one of ${FADE_OUTS.join(", ")}; reading fadeWords instead`);
+  const n = config.fadeWords;
+  return { out: n === 0 ? "field" : n === -1 ? "scored" : "window", style, legacy: true };
 }
 
 // The gap at the end of a cycle (before durationScale): the last score of the cycle may override it.
 // It comes after the score's own gap, as it always has.
 const cycleGap = ({ config, settings = {} }) => settings.interCycleMs ?? config.interCycleMs;
 
-export { scoreGap, cycleGap, durationOf, sumDurations, sumPauses, fadeDelay, readingTimes, pauseItem, toggleItems, scoreFromTimings, resolveScore };
+export { scoreGap, endsField, endsOfld, resolveFade, fadeOptions, cycleGap, durationOf, sumDurations, sumPauses, fadeDelay, readingTimes, pauseItem, toggleItems, scoreFromTimings, resolveScore };

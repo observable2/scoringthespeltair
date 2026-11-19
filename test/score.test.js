@@ -79,3 +79,24 @@ test("a score item's `pause` (the former name) is read as its duration", () => {
   assert.deepEqual(readingTimes([{ id: "x", pause: 70 }], spels), [70]);
   assert.deepEqual(readingTimes([{ id: "x", duration: 70 }], spels), [70]);
 });
+
+test("resolveFade: fadeOut and fadeStyle, the score's first; without fadeOut it is read from fadeWords as before", async () => {
+  const { resolveFade, endsOfld } = await import("../score.js");
+  assert.deepEqual(resolveFade({ fadeOut: "ofld" }), { out: "ofld", style: "together", legacy: false });
+  assert.deepEqual(resolveFade({ fadeOut: "ofld", fadeStyle: "sequence" }, { fadeOut: "score", fadeStyle: "together" }), { out: "score", style: "together", legacy: false });
+  assert.deepEqual(resolveFade({ fadeWords: 5 }), { out: "window", style: "together", legacy: true });
+  assert.equal(resolveFade({ fadeWords: 0 }).out, "field");
+  assert.equal(resolveFade({ fadeWords: -1 }).out, "scored");
+  assert.equal(resolveFade({}).out, "window"); // a config with no fadeWords at all fades nothing, as before
+  const spels = new Map([["a", { ofld: 0 }], ["b", { ofld: 0 }], ["c", { ofld: 1 }], ["x", {}]]);
+  const paras = [["a"], ["b"], ["c"]];
+  assert.deepEqual([0, 1, 2].map((n) => endsOfld(n, { paras, spels })), [false, true, true]);
+  assert.equal(endsOfld(0, { paras: [["x"], ["x"]], spels }), true, "spels without an ofld: every score ends one");
+});
+
+test("fadeOptions: the score's settings first, then the config, then the defaults", async () => {
+  const { fadeOptions } = await import("../score.js");
+  assert.deepEqual(fadeOptions({}), { order: "shown", staggerMs: undefined, holdMs: 0, overlapMs: undefined, reveal: "sequence" });
+  assert.deepEqual(fadeOptions({ fadeOrder: "reverse", holdMs: 100, overlapMs: 0 }, { holdMs: 5, revealStyle: "together", fadeStaggerMs: 30 }),
+    { order: "reverse", staggerMs: 30, holdMs: 5, overlapMs: 0, reveal: "together" });
+});

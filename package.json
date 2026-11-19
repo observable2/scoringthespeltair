@@ -1,6 +1,6 @@
 {
   "name": "scoringthespeltair",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "type": "module",
   "description": "Shared playback engine (spel scoring/animation) for Observable notebook-kit poem projects",
   "license": "MIT",
@@ -21,6 +21,7 @@
     "timetoread-rita.js",
     "typography.js",
     "mount.js",
+    "controls.js",
     "scripts/bump.js",
     "scripts/migrate-scores-to-duration.js",
     "README.md"
@@ -39,7 +40,8 @@
     "./timetoread-rita.js": "./timetoread-rita.js",
     "./text.js": "./text.js",
     "./typography.js": "./typography.js",
-    "./mount.js": "./mount.js"
+    "./mount.js": "./mount.js",
+    "./controls.js": "./controls.js"
   },
   "peerDependencies": {
     "rita": "^4.0.2-beta.16"

@@ -32,7 +32,7 @@ config, made with `createConfig`:
 import { createConfig } from "scoringthespeltair/config.js";
 
 const config = createConfig({
-  fadeWords: 0, // only what differs from the engine's defaults
+  fadeOut: "ofld", // only what differs from the engine's defaults
 });
 export { config };
 ```
@@ -64,7 +64,7 @@ it does not know (a typo would otherwise be ignored) or that is retired. Keys of
 | Scope | What it is | Who must agree |
 |---|---|---|
 | `measure` | the type and layout the spels are measured in: `fontFamily`, `fontWeight`, `fontSizeVw`, `lineHeight`, `opsz`, `ligatures`, `clmnRight` | notebook and player: the spel data depends on them. `typeCss` writes them as CSS for both. `measuredWith(config)` is exported as `measured.json`; `mount()` warns if a page's type differs |
-| `play` | read by `play()`: `running`, `startPara`, `cycleScores`, `scoreSettings`, `fadeWords`, `paraFadeWords`, `charFades`, `charIntervalMs`, `durationScale`, `interScoreMs`, `interCycleMs`, `creditsPauseMs`, `fieldFadeMs`, `clearPauseMs`, `PRODUCTION` | the player |
+| `play` | read by `play()`: `running`, `startPara`, `cycleScores`, `scoreSettings`, `fadeOut`, `fadeStyle`, `fadeWords`, `paraFadeWords`, `charFades`, `charIntervalMs`, `durationScale`, `interScoreMs`, `interCycleMs`, `creditsPauseMs`, `fieldFadeMs`, `clearPauseMs`, `PRODUCTION` | the player |
 | `page` | applied by the page's CSS: `spelFadeMs`, `charFadeMs` (as `--spel-fade`, `--char-fade`, `--field-fade`) | the pages |
 
 **The defaults** (`createConfig`): `durationScale` 1, `fontWeight` 300, `fontSizeVw` 3, `lineHeight` 1.8, `opsz` 14,
@@ -89,7 +89,7 @@ Moving over means writing down the old values you relied on (reading relies on `
 | `slower` | `durationScale` | multiplies every duration (above 1 lasts longer), so it is named for what it scales. The old name still works, as a config key and inside each `scoreSettings` entry; `toggleSpel`'s option takes either. Renamed in reunion and the three shi poems |
 | `numParas` | (retired) | never read by the engine: the number of paragraphs is `paras.length`. Removed from reading and the reference player; `createConfig` warns if it is given |
 | `scoredPauseMs` | (retired) | never read by the engine |
-| (hard-coded `2750`, `500` in `play()`) | `fieldFadeMs` + 250, `clearPauseMs` | with `fadeWords: 0`; defaults give the same times as before |
+| (hard-coded `2750`, `500` in `play()`) | `fieldFadeMs` + 250, `clearPauseMs` | with the legacy `fadeWords: 0` wipe (now also after a `fadeOut` "score" / "ofld" fade, as `clearPauseMs`); defaults give the same times as before |
 
 Also fixed: `paraFadeWords` is now looked up on every pass; before, only for the first paragraph.
 
@@ -195,7 +195,55 @@ Scores that are plain arrays play exactly as before; `options` can be left out.
   (the last word: its own length), in whole milliseconds, plus `extraMs` on every duration. `ids` gives the spel ids in order
   (otherwise each timing's `word` is the id) and a mismatch in length throws.
 
-## When spels fade out (`fadeWords` > 0)
+## Fading out: `fadeOut` and `fadeStyle`
+
+`fadeOut` says **what** fades the spels; `fadeStyle` says **how** (a score may override either in `scoreSettings`):
+
+| `fadeOut` | |
+|---|---|
+| `"window"` | each spel fades `fadeWords` spels after it appears (next section) |
+| `"scored"` | the engine never fades; the score's own items do (`toggleItems`, items with `duration: 0`): durations item by item |
+| `"score"` | items only show; their durations are display times. After the last item, and its gap (`interScoreMs`, or `interParaMs` / `interFieldMs` where the score ends a unit), the score's spels fade |
+| `"ofld"` | as `"score"`, but the spels stay while the score's field (ofld) goes on: after the score that ends the ofld, and its gap, the whole ofld fades (so does the end of the cycle) |
+| `"cycle"` | nothing fades until the cycle's last score and its gap are over, then everything fades: a piece that builds up |
+
+`fadeStyle` (with `"score"` / `"ofld"`): `"together"` (the default) fades them all at once; `"sequence"` fades them in the
+order shown, each after the item's own `duration` (times `durationScale`). Then `clearPauseMs` passes before the next score starts.
+Spels without an `ofld` (data from before it was recorded) count as ending an ofld at every score.
+
+These refine a `"score"` / `"ofld"` / `"cycle"` fade (all times in ms, before `durationScale`; each can also be set per score in `scoreSettings`):
+
+| key | default | |
+|---|---|---|
+| `fadeOrder` | `"shown"` | the order of a `"sequence"` fade: `"shown"` (as they appeared), `"reverse"` (last first), `"random"` |
+| `fadeStaggerMs` | none | a fixed step between the spels of a `"sequence"` fade, in place of each item's `duration` |
+| `holdMs` | `0` | the least time the whole unit stays showing, counted from when its last spel appeared, before it fades (for a short last item, or an implicit paragraph that should be read whole) |
+| `overlapMs` | none | the next score starts this long after the fade begins, however much of the fade is left: a cross-fade (`0`: at once). Without it the fade is over, and `clearPauseMs` has passed, first |
+| `revealStyle` | `"sequence"` | `"together"` shows all the score's spels at once (at its first item), then waits out the item durations: for implicit paragraphs of several spels that should appear whole. Only with `fadeOut` `"score"`, `"ofld"` or `"cycle"` (a score that toggles spels itself needs `"sequence"`) |
+| `spelFadeMs`, `charFadeMs` | the config's | **per score only** (`scoreSettings[n]`): the CSS fade time of that score's spels (in and out), set on `#field` as `--spel-fade` / `--char-fade`, which the pages' CSS use (see `typeCss`). For example a slow last fade. Not scaled by `durationScale` |
+
+Example, a poem whose lines (ofld) build up and fade in the reverse order, a cross-fade into the next line, the last line left longer:
+
+```js
+createConfig({ fadeOut: "ofld", fadeStyle: "sequence", fadeOrder: "reverse", fadeStaggerMs: 300, overlapMs: 0,
+  scoreSettings: [ /* ... */ { holdMs: 4000, charFadeMs: 3000 } ] });
+```
+
+### Pause, resume and skip
+
+`play()` reads two live flags on the config, `paused` and `skip`. `bindKeys(config)` (`controls.js`, exported from
+the package) sets them from the keyboard: space or `p` pauses and resumes; the right arrow or `n` skips to the next score.
+`bindKeys(config, { pause: ["k"], skip: ["j"] })` chooses the keys; it returns a function that unbinds them. A page may
+also set `config.paused` / `config.skip` itself. Pausing holds the piece at its next item or gap (a fade-out already
+scheduled still happens); skipping ends the current score at once: its gap is skipped, and what was due to fade fades without waiting.
+They only take effect once the flags exist (`bindKeys` creates them): a page that never binds keys plays exactly as before.
+
+**Without `fadeOut`** the old `fadeWords` values still work: `n > 0` is `"window"`; `-1` is `"scored"`; `0` wipes the whole
+`#field` after each score (`fieldFadeMs` + 250, then `clearPauseMs`). That wipe used to leave the characters of the spels
+visible with `charFades` (the next paragraph then appeared on top of the old); it now hides them. Prefer `fadeOut` in new work;
+the special values will go at 1.0.
+
+## When spels fade out (`fadeOut: "window"`, `fadeWords` > 0)
 
 A spel fades `fadeWords` spels after it appears: timed from the moment it appears, by the **reading time** of
 itself and of the `fadeWords` spels after it (`readingTimes` and `fadeDelay` in `score.js`). A score item's duration can carry
