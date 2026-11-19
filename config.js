@@ -20,7 +20,7 @@ const configSchema = {
   running:        { default: true,  scope: "play", doc: "false stops play() (handy while debugging)" },
   startPara:      { default: 0,     scope: "play", doc: "index of the paragraph where each cycle starts (usually 0; higher while debugging)" },
   cycleScores:    { default: false, scope: "play", doc: "true: one cycle plays every score in order (see scoreSettings); false: one score per paragraph" },
-  scoreSettings:  { default: undefined, scope: "play", doc: "array indexed by score number of { durationScale, interScoreMs, interParaMs, interFieldMs, interCycleMs, effect, shuffle, fadeOut, fadeStyle, fadeOrder, fadeStaggerMs, holdMs, overlapMs, revealStyle, spelFadeMs, charFadeMs }" },
+  scoreSettings:  { default: undefined, scope: "play", doc: "array indexed by score number of { durationScale, interScoreMs, interParaMs, interFieldMs, interCycleMs, effect, shuffle, fadeOut, fadeStyle, fadeOrder, fadeStaggerMs, holdMs, overlapMs, revealStyle, clearPauseMs, spelFadeMs, charFadeMs }" },
   fadeOut:        { default: undefined, scope: "play", doc: "what fades the spels out: \"window\" (each spel fades fadeWords spels after it), \"scored\" (the engine never fades; the score's own items do), \"score\" (a score's spels fade after its last item and its gap), \"ofld\" (an ofld's spels fade after the score that ends it and its gap), \"cycle\" (all the cycle's spels fade after its last score and gap). Absent: read from fadeWords, as before (n > 0 window; 0 wipes the whole field after each score; -1 scored). A score may override it (scoreSettings)" },
   fadeStyle:      { default: "together", scope: "play", doc: "with fadeOut score / ofld / cycle: \"together\" fades all the spels at once; \"sequence\" in the order shown, each after its item's duration. A score may override it (scoreSettings)" },
   fadeOrder:      { default: "shown", scope: "play", doc: "the order of a fadeStyle \"sequence\" fade: \"shown\" (as they appeared), \"reverse\", \"random\". A score may override it" },
@@ -39,7 +39,7 @@ const configSchema = {
   interCycleMs:   { default: 3000,  scope: "play", doc: "gap before the first score and at the end of each cycle (after the last score's own gap); the last score may override it" },
   creditsPauseMs: { default: 0,     scope: "play", doc: "how long #byline is shown at the end of each cycle (0: not shown)" },
   fieldFadeMs:    { default: 2500,  scope: "play", doc: "how long the whole field takes to fade (the legacy fadeWords 0 wipe); play() waits this long plus 250 ms. Also the field's CSS transition (typeCss)" },
-  clearPauseMs:   { default: 500,   scope: "play", doc: "pause after a fade-out of a whole score / ofld (fadeOut score / ofld / cycle) or the legacy fadeWords 0 wipe, before the next score starts" },
+  clearPauseMs:   { default: 500,   scope: "play", doc: "pause after a fade-out of a whole score / ofld (fadeOut score / ofld / cycle) or the legacy fadeWords 0 wipe, before the next score starts: the dark time between two units. A score may override it (scoreSettings)" },
   PRODUCTION:     { default: false, scope: "play", doc: "true: no console logging from play()" },
   // --- page: applied by the pages through typeCss(config) and the CSS variables it sets
   spelFadeMs:     { default: 1500,  scope: "page", doc: "CSS transition of a .spel" },

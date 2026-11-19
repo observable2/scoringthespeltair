@@ -188,7 +188,7 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
       fieldElem.style.opacity = 0;
       await sleep((fieldFadeMs + 250) * durationScale);
       paras[paraNum].forEach(p => hideSpel(document.getElementById(p), config, toggleOpts));
-      await sleep(clearPauseMs * durationScale);
+      await sleep((settings.clearPauseMs ?? clearPauseMs) * durationScale);
     } else if (unitFade) {
       // the unit is over after each score ("score"), after the one that ends its ofld ("ofld", which an ofld-less
       // score does too), or after the cycle's last score ("cycle"); with cycleScores no ofld ends before that
@@ -211,7 +211,7 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
         };
         if (fopt.overlapMs === undefined) {
           await fadeThem();
-          await nap(clearPauseMs * scale); // before the next score starts
+          await nap((settings.clearPauseMs ?? clearPauseMs) * scale); // before the next score starts (the score's own, if it has one)
         } else {
           fadeThem(); // goes on while the next score starts
           await nap(fopt.overlapMs * scale);

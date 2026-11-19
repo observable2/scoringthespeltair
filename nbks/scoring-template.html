@@ -15,7 +15,7 @@
     // engine's version: "@main" follows the branch (cached, so it can lag a push, and is unreleased); a release tag
     // such as "@v0.5.0" pins it. Move to a new release by changing this one tag (the engine's
     // scripts/bump.js does it for a whole project; see the engine's README, "Releases").
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.12.0";
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.13.0";
     const load = async (f) => {
       try { return await import(`${engine}/${f}`); }
       catch (e) { throw new Error(`Could not load the engine file ${f} from ${engine} (offline, or tag missing?): ${e.message}`); }
@@ -59,12 +59,13 @@
       // interCycleMs: 3000, creditsPauseMs: 0,
       // startPara: 0,            // paragraph where each cycle starts
       // cycleScores: false,      // true: one cycle plays every score (see scoreSettings)
-      // scoreSettings: [ { durationScale: 0.5, effect: "glow", shuffle: true, interScoreMs: 0 } ], // a score may also override interParaMs, interFieldMs, interCycleMs, fadeOut, fadeStyle, fadeOrder, fadeStaggerMs, holdMs, overlapMs, revealStyle, spelFadeMs, charFadeMs
+      // scoreSettings: [ { durationScale: 0.5, effect: "glow", shuffle: true, interScoreMs: 0 } ], // a score may also override interParaMs, interFieldMs, interCycleMs, fadeOut, fadeStyle, fadeOrder, fadeStaggerMs, holdMs, overlapMs, revealStyle, clearPauseMs, spelFadeMs, charFadeMs
     })
     // Settings for only some of the scores (each may hold anything scoreSettings takes: interFieldMs, interCycleMs,
     // holdMs, fadeOut ...), by score number from 0 (-1 counts from the end), "first", "last" or "all". The export
     // turns this into the scoreSettings array, once the number of scores is known (expandScoreSettings, in the engine).
-    // For example { first: { interFieldMs: 3500 }, last: { interFieldMs: 3500, interCycleMs: 8000 } }
+    // For example { first: { interFieldMs: 3500, clearPauseMs: 1500 }, last: { interFieldMs: 3500, interCycleMs: 8000 } }
+    // (interFieldMs: more time shown before the fade; clearPauseMs: more dark time after it)
     const perScore = {}
   </script>
   <script id="5875" type="module">

@@ -223,7 +223,7 @@ Scores that are plain arrays play exactly as before; `options` can be left out.
 | `"cycle"` | nothing fades until the cycle's last score and its gap are over, then everything fades: a piece that builds up |
 
 `fadeStyle` (with `"score"` / `"ofld"`): `"together"` (the default) fades them all at once; `"sequence"` fades them in the
-order shown, each after the item's own `duration` (times `durationScale`). Then `clearPauseMs` passes before the next score starts.
+order shown, each after the item's own `duration` (times `durationScale`). Then `clearPauseMs` passes before the next score starts: the dark time between two units (a score may have its own).
 Spels without an `ofld` (data from before it was recorded) count as ending an ofld at every score.
 
 These refine a `"score"` / `"ofld"` / `"cycle"` fade (all times in ms, before `durationScale`; each can also be set per score in `scoreSettings`):
@@ -232,6 +232,7 @@ These refine a `"score"` / `"ofld"` / `"cycle"` fade (all times in ms, before `d
 |---|---|---|
 | `fadeOrder` | `"shown"` | the order of a `"sequence"` fade: `"shown"` (as they appeared), `"reverse"` (last first), `"random"` |
 | `fadeStaggerMs` | none | a fixed step between the spels of a `"sequence"` fade, in place of each item's `duration` |
+| `clearPauseMs` | `500` | the dark time after the fade, before the next score starts; a score's own is the dark time after *that* score's unit (add it to the gap before the fade, `interFieldMs`, for time shown and time dark) |
 | `holdMs` | `0` | the least time the whole unit stays showing, counted from when its last spel appeared, before it fades (for a short last item, or an implicit paragraph that should be read whole) |
 | `overlapMs` | none | the next score starts this long after the fade begins, however much of the fade is left: a cross-fade (`0`: at once). Without it the fade is over, and `clearPauseMs` has passed, first |
 | `revealStyle` | `"sequence"` | `"together"` shows all the score's spels at once (at its first item), then waits out the item durations: for implicit paragraphs of several spels that should appear whole. Only with `fadeOut` `"score"`, `"ofld"` or `"cycle"` (a score that toggles spels itself needs `"sequence"`) |

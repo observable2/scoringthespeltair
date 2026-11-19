@@ -267,3 +267,13 @@ test("play(): config.paused holds the piece; config.skip ends the score at once;
   const skipped = await fadeStates({ fadeOut: "score", paused: false, skip: false }, { scores: long, runMs: 200, during: [[90, (c) => { c.skip = true; }]] });
   assert.ok(skipped.some((x) => x === "b"), `skipped to b: ${skipped}`);
 });
+
+test("play(): a score's own clearPauseMs is the dark time after its unit fades", { skip: !JSDOM }, async () => {
+  const dark = (st, from) => st.times[st.indexOf("", from) + 1] - st.times[st.indexOf("", from)]; // "" to the next spel
+  const states = await fadeStates({ fadeOut: "score" }, { settings: [{ clearPauseMs: 1500 }], runMs: 500 }); // 150 ms scaled, for score 0
+  assert.deepEqual(states.slice(0, 4), ["a", "", "b", ""]);
+  assert.ok(dark(states, 0) >= 140, `score 0: ${dark(states, 0)} ms`);
+  // the other scores use the config's clearPauseMs (0 here)
+  const second = states.times[states.indexOf("", 2) + 1] - states.times[states.indexOf("", 2)];
+  assert.ok(second < 60, `score 1: ${second} ms`);
+});
