@@ -39,7 +39,7 @@ const configSchema = {
   interCycleMs:   { default: 3000,  scope: "play", doc: "gap before the first score and at the end of each cycle (after the last score's own gap); the last score may override it" },
   creditsPauseMs: { default: 0,     scope: "play", doc: "how long #byline is shown at the end of each cycle (0: not shown)" },
   fieldFadeMs:    { default: 2500,  scope: "play", doc: "how long the whole field takes to fade (the legacy fadeWords 0 wipe); play() waits this long plus 250 ms. Also the field's CSS transition (typeCss)" },
-  clearPauseMs:   { default: 500,   scope: "play", doc: "pause after a fade-out of a whole score / ofld (fadeOut score / ofld / cycle) or the legacy fadeWords 0 wipe, before the next score starts: the dark time between two units. A score may override it (scoreSettings)" },
+  clearPauseMs:   { default: 800,   scope: "play", doc: "pause after a fade-out of a whole score / ofld (fadeOut score / ofld / cycle) or the legacy fadeWords 0 wipe, before the next score starts: the dark time between two units. A score may override it (scoreSettings)" },
   PRODUCTION:     { default: false, scope: "play", doc: "true: no console logging from play()" },
   // --- page: applied by the pages through typeCss(config) and the CSS variables it sets
   spelFadeMs:     { default: 1500,  scope: "page", doc: "CSS transition of a .spel" },

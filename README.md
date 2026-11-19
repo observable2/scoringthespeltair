@@ -70,7 +70,7 @@ it does not know (a typo would otherwise be ignored) or that is retired. Keys of
 **The defaults** (`createConfig`): `durationScale` 1, `fontWeight` 300, `fontSizeVw` 3, `lineHeight` 1.8, `opsz` 14,
 `ligatures` "no-common-ligatures", `fadeWords` 5, `charFades` true, `charIntervalMs` 80,
 `interScoreMs` 3000, `interCycleMs` 3000, `creditsPauseMs` 0, `startPara` 0, `fieldFadeMs` 2500,
-`clearPauseMs` 500, `spelFadeMs` 1500, `charFadeMs` 1300. The table in the notebook has them all.
+`clearPauseMs` 800, `spelFadeMs` 1500, `charFadeMs` 1300. The table in the notebook has them all.
 
 **Adding a setting:** add it to `configSchema` (default, scope, doc). If the pages apply it, add it to
 `typeCss` or have the page read it from the config. If `play()` reads it, a `config.x ?? defaults.x`
@@ -232,7 +232,7 @@ These refine a `"score"` / `"ofld"` / `"cycle"` fade (all times in ms, before `d
 |---|---|---|
 | `fadeOrder` | `"shown"` | the order of a `"sequence"` fade: `"shown"` (as they appeared), `"reverse"` (last first), `"random"` |
 | `fadeStaggerMs` | none | a fixed step between the spels of a `"sequence"` fade, in place of each item's `duration` |
-| `clearPauseMs` | `500` | the dark time after the fade, before the next score starts; a score's own is the dark time after *that* score's unit (add it to the gap before the fade, `interFieldMs`, for time shown and time dark) |
+| `clearPauseMs` | `800` | the dark time after the fade, before the next score starts; a score's own is the dark time after *that* score's unit (add it to the gap before the fade, `interFieldMs`, for time shown and time dark) |
 | `holdMs` | `0` | the least time the whole unit stays showing, counted from when its last spel appeared, before it fades (for a short last item, or an implicit paragraph that should be read whole) |
 | `overlapMs` | none | the next score starts this long after the fade begins, however much of the fade is left: a cross-fade (`0`: at once). Without it the fade is over, and `clearPauseMs` has passed, first |
 | `revealStyle` | `"sequence"` | `"together"` shows all the score's spels at once (at its first item), then waits out the item durations: for implicit paragraphs of several spels that should appear whole. Only with `fadeOut` `"score"`, `"ofld"` or `"cycle"` (a score that toggles spels itself needs `"sequence"`) |

@@ -15,7 +15,8 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
   // slower is the legacy name of durationScale (a config spreading the legacy defaultConfig has it)
   const durationScale = config.durationScale ?? config.slower ?? defaults.durationScale;
   const fieldFadeMs = config.fieldFadeMs ?? defaults.fieldFadeMs;
-  const clearPauseMs = config.clearPauseMs ?? defaults.clearPauseMs;
+  // (a config without it, such as one spreading the legacy defaultConfig, keeps the 500 it always had; createConfig's default is 800)
+  const clearPauseMs = config.clearPauseMs ?? 500;
   const devLog = createDevLog(config);
   // sleep that also honours the live flags config.paused (hold here) and config.skip (cut this wait short),
   // once they exist in the config (see bindKeys in controls.js); without them it is a plain sleep

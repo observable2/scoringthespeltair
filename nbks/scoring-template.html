@@ -10,12 +10,15 @@
   </script>
   <script id="3254" type="module">
     display(md`#### \`config\`<br>&nbsp;`)
-    // THE ENGINE, from GitHub through jsDelivr (not raw.githubusercontent.com, which serves
-    // text/plain, so browsers refuse it as a module). This is the one place the notebook names the
-    // engine's version: "@main" follows the branch (cached, so it can lag a push, and is unreleased); a release tag
-    // such as "@v0.5.0" pins it. Move to a new release by changing this one tag (the engine's
-    // scripts/bump.js does it for a whole project; see the engine's README, "Releases").
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.13.0";
+    // THE ENGINE, from GitHub through jsDelivr (raw.github-
+    // usercontent.com serves text/plain, which browsers refuse as
+    // a module). This is the one place the notebook names the
+    // engine's version: "@main" follows the branch (cached, so it
+    // can lag a push, and is unreleased); a release tag such as
+    // "@v0.5.0" pins it. To move to a new release, change this
+    // tag (scripts/bump.js does it for a whole project; see the
+    // engine's README, "Releases").
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.14.0";
     const load = async (f) => {
       try { return await import(`${engine}/${f}`); }
       catch (e) { throw new Error(`Could not load the engine file ${f} from ${engine} (offline, or tag missing?): ${e.message}`); }
@@ -23,49 +26,85 @@
     const { createConfig, expandScoreSettings, configSchema, measuredWith } = await load("config.js");
     const { typeCss } = await load("typography.js");
 
-    // createConfig gives every setting the engine's default (see the table of settings below) and
-    // applies only what you override here. It warns in the console about a key it does not know.
-    // The same config, exported (see Export below), is what the player reads, so the notebook and
-    // the player cannot disagree. Paragraphs, columns, fields etc. are not configured here: they
-    // come from the <!--@ ... --> markup in the galley (see `containment` and `layout` below).
+    // createConfig gives every setting the engine's default and
+    // applies only what you override here (it warns in the console
+    // about a key it does not know). The exported config (see Export)
+    // is what the player reads, so notebook and player cannot
+    // disagree. Paragraphs, columns and fields are not set here: they
+    // come from the <!--@ ... --> markup in the galley.
     const config = createConfig({
-      // --- MEASURE: the type and layout the spels are measured in. The spel data depends on these.
-      clmnRight: 48, // vw added to the left of every spel in a clmn named "right" (left clmn of the sample is 42.4vw wide)
-      // a clmn named "left" (or unnamed, or no clmn at all) adds 0
-      // fontWeight: 300,         // default
-      // fontSizeVw: 3,           // default; spel positions scale with it
-      // lineHeight: 1.8,         // default
-      // opsz: 14,                // default (null: leave to the browser)
-      // ligatures: "no-common-ligatures", // default
-      // fontFamily: "Source Serif 4",     // default (loaded from Google Fonts)
+      // --- MEASURE: the type and layout the spels are
+      // measured in (the spel data depends on these).
+      // Defaults shown.
+      // fontFamily: "Source Serif 4", // from Google Fonts
+      // fontWeight: 300,
+      // fontSizeVw: 3,    // spel positions scale with it
+      // lineHeight: 1.8,
+      // opsz: 14,         // null: leave to the browser
+      // ligatures: "no-common-ligatures",
+      clmnRight: 48, // vw added to every spel in a clmn
+      // named "right" (the sample's left clmn is 42.4vw
+      // wide); a "left", unnamed or no clmn adds 0
 
-      // --- PLAY: read by the engine while the piece plays (override here to try it; export to use it)
-      // charFades: true,         // reveal spels character by character; false: whole spels
-      // charIntervalMs: 80,
-      // fadeOut: "window",       // what fades the spels: "window" (each fades fadeWords spels later), "scored" (the score's items do),
-      //                          //   "score" (a score's spels, after its last item and gap), "ofld" (an ofld's, after the score that ends it),
-      //                          //   "cycle" (everything, at the end of the cycle)
-      // fadeStyle: "together",   // with "score" / "ofld" / "cycle": "together", or "sequence" (in the order shown, each after its item's duration)
-      // fadeOrder: "shown",      // a "sequence" fade in this order: "shown", "reverse", "random"
-      // fadeStaggerMs: 300,      // a fixed step between the spels of a "sequence" fade, in place of the item durations
-      // holdMs: 0,               // the least time the whole unit shows (from its last spel) before it fades
-      // overlapMs: 0,            // the next score starts this long after the fade begins (a cross-fade); omit to wait for the fade
-      // revealStyle: "sequence", // "together": show all a score's spels at once, then wait out the durations
-      // fadeWords: 5,            // with "window": fade each spel n spels later  (old projects: 0 removes the paragraph; -1 the scores fade)
-      // durationScale: 1,        // multiplier on all durations (2: everything lasts twice as long)
-      // interScoreMs: 3000,      // the gap after a score ...
-      // interParaMs: 1000,       // ... in place of it, after a score that ends a para (cycleScores off)
-      // interFieldMs: 3000,      // ... and after one that ends a field (an ofld); the field outranks the para
-      // interCycleMs: 3000, creditsPauseMs: 0,
-      // startPara: 0,            // paragraph where each cycle starts
-      // cycleScores: false,      // true: one cycle plays every score (see scoreSettings)
-      // scoreSettings: [ { durationScale: 0.5, effect: "glow", shuffle: true, interScoreMs: 0 } ], // a score may also override interParaMs, interFieldMs, interCycleMs, fadeOut, fadeStyle, fadeOrder, fadeStaggerMs, holdMs, overlapMs, revealStyle, clearPauseMs, spelFadeMs, charFadeMs
+      // --- PLAY: read by the engine while the piece plays
+      // (set here to try it; export to use it).
+      // Defaults shown.
+      // Showing:
+      // charFades: true,    // reveal character by character
+      // charIntervalMs: 80, // delay between characters
+      // durationScale: 1,   // multiplier on every duration
+
+      // Fading out. fadeOut is what fades the spels:
+      //   "window" each spel, fadeWords spels after it
+      //   "scored" the score's own items do it
+      //   "score"  a score's spels, after its last item
+      //   "ofld"   an ofld's spels, after the score that
+      //            ends it
+      //   "cycle"  everything, at the end of the cycle
+      // fadeOut: "window",
+      // fadeWords: 5,       // for "window"
+      // fadeStyle: "together", // or "sequence": in the
+      //   order shown, each after its item's duration
+      // fadeOrder: "shown", // or "reverse", "random"
+      // fadeStaggerMs: 300, // a fixed step, for "sequence"
+      // holdMs: 0,          // least time all is shown
+      //   before it fades (from the last spel)
+      // overlapMs: 0,       // next score starts this long
+      //   after the fade begins (cross-fade)
+      // revealStyle: "sequence", // "together": a whole
+      //   score's spels at once
+
+      // Gaps (ms):
+      // interScoreMs: 3000, // after a score ...
+      // interParaMs: 1000,  // ... after one ending a para
+      // interFieldMs: 3000, // ... after one ending an ofld
+      // interCycleMs: 3000, // at the end of each cycle
+      // clearPauseMs: 800,  // dark time after a fade
+      // creditsPauseMs: 0,  // #byline shown at cycle end
+
+      // startPara: 0,       // paragraph a cycle starts at
+      // cycleScores: false, // true: a cycle plays every
+      //   score in turn (see scoreSettings)
+
+      // --- PAGE: CSS fade times of spels and characters
+      // spelFadeMs: 1500,
+      // charFadeMs: 1300,
+
+      // scoreSettings: set it through perScore, below
     })
-    // Settings for only some of the scores (each may hold anything scoreSettings takes: interFieldMs, interCycleMs,
-    // holdMs, fadeOut ...), by score number from 0 (-1 counts from the end), "first", "last" or "all". The export
-    // turns this into the scoreSettings array, once the number of scores is known (expandScoreSettings, in the engine).
-    // For example { first: { interFieldMs: 3500, clearPauseMs: 1500 }, last: { interFieldMs: 3500, interCycleMs: 8000 } }
-    // (interFieldMs: more time shown before the fade; clearPauseMs: more dark time after it)
+    // Settings for only some scores (anything scoreSettings takes:
+    // interFieldMs, clearPauseMs, interCycleMs, holdMs, fadeOut,
+    // durationScale, effect, spelFadeMs ...). Name a score by its
+    // number from 0 (-1 counts from the end), "first", "last" or
+    // "all". The export turns this into the scoreSettings array,
+    // once the number of scores is known (expandScoreSettings).
+    // interFieldMs: time shown before the fade; clearPauseMs: dark
+    // time after it.
+    // For example:
+    // const perScore = {
+    //   first: { interFieldMs: 3500, clearPauseMs: 1500 },
+    //   last: { interFieldMs: 3500, interCycleMs: 8000 },
+    // }
     const perScore = {}
   </script>
   <script id="5875" type="module">
