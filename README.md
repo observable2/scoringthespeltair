@@ -262,8 +262,8 @@ The wait after a score's last spel still lasts until the last fade-out, then `in
 
 The gap after a score is `interScoreMs`, unless the score ends a unit that has a gap of its own, which then
 replaces it: `interParaMs` after a score that ends a paragraph (`cycleScores` off, where score *i* plays `paras[i]`),
-`interFieldMs` after one that ends a field (the next paragraph's first spel is in another `ofld`; the field outranks
-the paragraph). `interCycleMs` still follows the cycle's last score, after its own gap. In every case the score's
+`interFieldMs` after one that ends a field (the next paragraph's first spel is in another `ofld`, or it is the last
+paragraph, whose ofld the cycle's end closes; the field outranks the paragraph). `interCycleMs` still follows the cycle's last score, after its own gap. In every case the score's
 own `scoreSettings` entry comes first (`interFieldMs`, `interParaMs`, `interCycleMs`, or its `interScoreMs`, which
 beats the config's unit gaps), then the config's, so no override means the config's value. A config that lacks
 `interParaMs`/`interFieldMs` (the legacy `defaultConfig`) gives `interScoreMs` throughout, as before; spels without

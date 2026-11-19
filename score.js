@@ -128,11 +128,13 @@ function fadeOptions(config, settings = {}) {
 }
 
 // Does the score sNum end a field (an ofld)? Yes if the next paragraph's first spel is in another
-// ofld; spels without an `ofld` (data from before it was recorded) never end one (see scoreGap).
+// ofld, or if it is the last paragraph (the cycle's end ends the ofld it is in). Spels without an
+// `ofld` (data from before it was recorded) never end one (see scoreGap).
 const endsField = (sNum, { paras, spels }) => {
   const ofldOf = (para) => spels?.get(para?.[0])?.ofld;
   const here = ofldOf(paras?.[sNum]), next = ofldOf(paras?.[sNum + 1]);
-  return here !== undefined && next !== undefined && here !== next;
+  if (here === undefined) return false;
+  return sNum + 1 >= (paras?.length ?? 0) || (next !== undefined && here !== next);
 };
 
 // Does the score sNum end the ofld it is in, for fading it out? Like endsField, but a score also ends
@@ -149,8 +151,9 @@ const endsOfld = (sNum, { paras, spels }) => {
 //   settings.interFieldMs ?? settings.interScoreMs ?? config.interFieldMs ?? config.interScoreMs
 // (a config without interFieldMs/interParaMs, such as a legacy one, therefore gives interScoreMs as always).
 // With cycleScores a score is not a paragraph, so no unit ends (only the cycle's end, see cycleGap).
-// A score ends a field if the next paragraph's first spel is in another ofld; spels without an
-// `ofld` (data from before it was recorded) never end one.
+// A score ends a field if the next paragraph's first spel is in another ofld, or if it is the last
+// paragraph (before 0.11.0 the last one took interParaMs); spels without an `ofld` (data from before
+// it was recorded) never end one.
 function scoreGap(sNum, { config, settings = {}, paras, spels }) {
   if (config.cycleScores || !paras?.[sNum]) return settings.interScoreMs ?? config.interScoreMs;
   if (endsField(sNum, { paras, spels })) return settings.interFieldMs ?? settings.interScoreMs ?? config.interFieldMs ?? config.interScoreMs;
