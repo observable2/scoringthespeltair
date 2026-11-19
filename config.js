@@ -93,6 +93,34 @@ function normalizeConfig(config) {
   return out;
 }
 
+// expandScoreSettings(perScore, n) -> the array that `scoreSettings` needs, for a piece of n scores, from an
+// object that names only the scores that differ (a notebook's config cell cannot know n, and JSON has no
+// holes). The keys, from the least to the most specific (a later one adds to an earlier, key by key):
+//   "all"            every score
+//   "first", "last"  the first / the last score
+//   0, 1, 2 ...      that score (counted from 0); -1, -2 ... count from the end (-1 is the last)
+// A score that none of them names gets null, which play() skips. A key that is none of these, or an index
+// outside 0..n-1, throws: a typo would otherwise leave the setting off without a word.
+function expandScoreSettings(perScore = {}, n) {
+  if (!Number.isInteger(n) || n < 0) throw new Error(`scoringthespeltair: expandScoreSettings needs the number of scores, not ${n}`);
+  const out = Array.from({ length: n }, () => ({}));
+  const put = (i, v, key) => {
+    if (i < 0 || i >= n) throw new Error(`scoringthespeltair: scoreSettings key "${key}" is outside the ${n} scores`);
+    Object.assign(out[i], v);
+  };
+  const rank = (k) => (k === "all" ? 0 : k === "first" || k === "last" ? 1 : 2);
+  const keys = Object.keys(perScore).sort((a, b) => rank(a) - rank(b));
+  for (const k of keys) {
+    const v = perScore[k];
+    if (k === "all") out.forEach((o) => Object.assign(o, v));
+    else if (k === "first") put(0, v, k);
+    else if (k === "last") put(n - 1, v, k);
+    else if (/^-?\d+$/.test(k)) put(+k < 0 ? n + +k : +k, v, k);
+    else throw new Error(`scoringthespeltair: scoreSettings key "${k}" is not "all", "first", "last" or a score number`);
+  }
+  return out.map((o) => (Object.keys(o).length ? o : null));
+}
+
 // createConfig(overrides, { warn }) -> a new, plain object: the defaults, then the overrides.
 // Warns (console.warn, or options.warn) about retired keys, legacy time keys and keys it does not
 // know (a typo would otherwise be ignored silently). Keys it does not know are kept, so a project
@@ -145,4 +173,4 @@ const defaultConfig = {
   cycleScores: false,
   PRODUCTION: false
 };
-export { createConfig, normalizeConfig, measuredWith, checkMeasuredWith, configSchema, configAliases, defaults, defaultConfig };
+export { createConfig, expandScoreSettings, normalizeConfig, measuredWith, checkMeasuredWith, configSchema, configAliases, defaults, defaultConfig };

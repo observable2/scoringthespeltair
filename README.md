@@ -163,6 +163,21 @@ needs each score to behave differently. Two config keys, both optional:
 
 A score with no entry (or no `scoreSettings`) behaves exactly as before. See `shi/nbks/data/maple-bridge/config.js`.
 
+**Writing only the scores that differ.** `scoreSettings` is an array with one entry per score, which is awkward to write
+for a piece of many scores where one or two differ (and a notebook's config cell cannot know how many scores there will
+be). `expandScoreSettings(perScore, n)` (`config.js`, exported from the package) builds the array from an object that
+names only those scores, once you know `n` (the export cell does):
+
+```js
+const perScore = { 0: { interFieldMs: 3500 }, last: { interFieldMs: 3500, interCycleMs: 8000 } };
+const config = createConfig({ ..., scoreSettings: expandScoreSettings(perScore, scores.length) });
+```
+
+The keys, from the least to the most specific; where several name one score their settings are merged, the more
+specific winning: `"all"` (every score), `"first"` and `"last"`, and a score number (from 0; negative numbers count from
+the end, so `-1` is the last). A score that none of them names gets `null` (play() skips it, so the array can go into
+JSON). An unknown key, or a number outside the scores, throws, so a typo can't silently leave a setting off.
+
 ## Generated scores and timed scores
 
 Added for *uchaf*, usable by any piece.

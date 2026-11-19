@@ -115,3 +115,27 @@ test("typeCss", () => {
   assert.match(css, /--spel-fade: 1500ms/);
   assert.doesNotMatch(typeCss({ opsz: null }), /opsz/);
 });
+
+test("expandScoreSettings: names only the scores that differ; null for the rest; merged by specificity; typos throw", async () => {
+  const { expandScoreSettings } = await import("../config.js");
+  assert.deepEqual(expandScoreSettings({ 0: { a: 1 }, last: { a: 2 } }, 4), [{ a: 1 }, null, null, { a: 2 }]);
+  assert.deepEqual(expandScoreSettings({ all: { a: 1, b: 1 }, first: { b: 2 }, 1: { b: 3 }, "-1": { c: 4 } }, 3),
+    [{ a: 1, b: 2 }, { a: 1, b: 3 }, { a: 1, b: 1, c: 4 }]);
+  assert.deepEqual(expandScoreSettings({ 0: { a: 1 }, last: { b: 2 } }, 1), [{ a: 1, b: 2 }], "one score: first and last merge");
+  assert.deepEqual(expandScoreSettings({}, 2), [null, null]);
+  assert.deepEqual(expandScoreSettings(undefined, 0), []);
+  assert.throws(() => expandScoreSettings({ lst: {} }, 3), /not "all", "first", "last" or a score number/);
+  assert.throws(() => expandScoreSettings({ 3: {} }, 3), /outside the 3 scores/);
+  assert.throws(() => expandScoreSettings({ "-4": {} }, 3), /outside the 3 scores/);
+  assert.throws(() => expandScoreSettings({}, undefined), /number of scores/);
+});
+
+test("expandScoreSettings: the array goes through createConfig and scoreGap as hand-written settings do", async () => {
+  const { expandScoreSettings, createConfig } = await import("../config.js");
+  const { scoreGap } = await import("../score.js");
+  const spels = new Map([["a", { ofld: 1 }], ["b", { ofld: 2 }], ["c", { ofld: 3 }]]);
+  const paras = [["a"], ["b"], ["c"]];
+  const config = createConfig({ interFieldMs: 2000, scoreSettings: expandScoreSettings({ first: { interFieldMs: 3500 }, last: { interFieldMs: 3500 } }, 3) });
+  const gaps = [0, 1, 2].map((i) => scoreGap(i, { config, settings: config.scoreSettings[i] ?? {}, paras, spels }));
+  assert.deepEqual(gaps, [3500, 2000, 3500]);
+});
