@@ -65,12 +65,12 @@ it does not know (a typo would otherwise be ignored) or that is retired. Keys of
 |---|---|---|
 | `measure` | the type and layout the spels are measured in: `fontFamily`, `fontWeight`, `fontSizeVw`, `lineHeight`, `opsz`, `ligatures`, `clmnRight` | notebook and player: the spel data depends on them. `typeCss` writes them as CSS for both. `measuredWith(config)` is exported as `measured.json`; `mount()` warns if a page's type differs |
 | `play` | read by `play()`: `running`, `startPara`, `cycleScores`, `scoreSettings`, `fadeOut`, `fadeStyle`, `fadeWords`, `paraFadeWords`, `charFades`, `charIntervalMs`, `durationScale`, `interScoreMs`, `interCycleMs`, `creditsPauseMs`, `fieldFadeMs`, `clearPauseMs`, `PRODUCTION` | the player |
-| `page` | applied by the page's CSS: `spelFadeMs`, `charFadeMs` (as `--spel-fade`, `--char-fade`, `--field-fade`) | the pages |
+| `page` | applied by the page's CSS: `fadeMs`, `fadeInMs`, `fadeOutMs` (as `--fade-in`, `--fade-out`; `--field-fade` is `fieldFadeMs`) | the pages |
 
 **The defaults** (`createConfig`): `durationScale` 1, `fontWeight` 300, `fontSizeVw` 3, `lineHeight` 1.8, `opsz` 14,
 `ligatures` "no-common-ligatures", `fadeWords` 5, `charFades` true, `charIntervalMs` 80,
 `interScoreMs` 3000, `interCycleMs` 3000, `creditsPauseMs` 0, `startPara` 0, `fieldFadeMs` 2500,
-`clearPauseMs` 800, `spelFadeMs` 1500, `charFadeMs` 1300. The table in the notebook has them all.
+`clearPauseMs` 1300, `fadeMs` 1300. The table in the notebook has them all.
 
 **Adding a setting:** add it to `configSchema` (default, scope, doc). If the pages apply it, add it to
 `typeCss` or have the page read it from the config. If `play()` reads it, a `config.x ?? defaults.x`
@@ -232,18 +232,36 @@ These refine a `"score"` / `"ofld"` / `"cycle"` fade (all times in ms, before `d
 |---|---|---|
 | `fadeOrder` | `"shown"` | the order of a `"sequence"` fade: `"shown"` (as they appeared), `"reverse"` (last first), `"random"` |
 | `fadeStaggerMs` | none | a fixed step between the spels of a `"sequence"` fade, in place of each item's `duration` |
-| `clearPauseMs` | `800` | the dark time after the fade, before the next score starts; a score's own is the dark time after *that* score's unit (add it to the gap before the fade, `interFieldMs`, for time shown and time dark) |
+| `clearPauseMs` | `1300` | the dark time after the fade, before the next score starts; a score's own is the dark time after *that* score's unit (add it to the gap before the fade, `interFieldMs`, for time shown and time dark) |
 | `holdMs` | `0` | the least time the whole unit stays showing, counted from when its last spel appeared, before it fades (for a short last item, or an implicit paragraph that should be read whole) |
 | `overlapMs` | none | the next score starts this long after the fade begins, however much of the fade is left: a cross-fade (`0`: at once). Without it the fade is over, and `clearPauseMs` has passed, first |
 | `revealStyle` | `"sequence"` | `"together"` shows all the score's spels at once (at its first item), then waits out the item durations: for implicit paragraphs of several spels that should appear whole. Only with `fadeOut` `"score"`, `"ofld"` or `"cycle"` (a score that toggles spels itself needs `"sequence"`) |
-| `spelFadeMs`, `charFadeMs` | the config's | **per score only** (`scoreSettings[n]`): the CSS fade time of that score's spels (in and out), set on `#field` as `--spel-fade` / `--char-fade`, which the pages' CSS use (see `typeCss`). For example a slow last fade. Not scaled by `durationScale` |
+| `fadeMs`, `fadeInMs`, `fadeOutMs` | the config's | the CSS fade time of that score's spels or characters, in and out (`fadeMs`), or one direction (`fadeInMs` appearing, `fadeOutMs` disappearing); set on `#field` as `--fade-in` / `--fade-out`, which the pages' CSS use (see "Fade times" below). For example a slow last fade. Not scaled by `durationScale`; what a score does not say is the config's |
 
 Example, a poem whose lines (ofld) build up and fade in the reverse order, a cross-fade into the next line, the last line left longer:
 
 ```js
 createConfig({ fadeOut: "ofld", fadeStyle: "sequence", fadeOrder: "reverse", fadeStaggerMs: 300, overlapMs: 0,
-  scoreSettings: [ /* ... */ { holdMs: 4000, charFadeMs: 3000 } ] });
+  scoreSettings: [ /* ... */ { holdMs: 4000, fadeOutMs: 3000 } ] });
 ```
+
+### Fade times (`fadeMs`, `fadeInMs`, `fadeOutMs`)
+
+`fadeMs` (1300) is the CSS fade time of whatever fades: a character when `charFades` is on, a whole spel when it is off (the
+other unit's transition never runs, so one number is enough). `fadeInMs` and `fadeOutMs` override it for the appearing and
+the disappearing, so a quick reveal can have a slow fade out. `typeCss` turns them into `--fade-in` and `--fade-out`
+(and still sets `--spel-fade` / `--char-fade`, to the fade-in time, for a page that has not been updated). The page's CSS
+needs one rule for each direction, because a transition counts for the state it moves *to*:
+
+```css
+.char         { opacity: 0; transition: all var(--fade-out, 1.3s) ease-in-out }  /* going hidden: the fade out */
+.char.visible { opacity: 1; transition: all var(--fade-in, 1.3s) ease-in-out }   /* going visible: the fade in */
+/* the same for .spel */
+```
+
+The former `spelFadeMs` and `charFadeMs` are still read, as `fadeMs` (`charFadeMs` with `charFades`, `spelFadeMs` without), in the
+config and in `scoreSettings`. The engine does not wait for a fade to finish: `clearPauseMs` (1300) is the dark time counted
+from the moment the fade-out starts, so with the same `fadeOutMs` the next unit begins just as the last one has gone.
 
 ### Pause, resume and skip
 

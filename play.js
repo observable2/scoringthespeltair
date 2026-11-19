@@ -3,7 +3,7 @@ import { createDevLog } from "./dev.js";
 import { toggleSpel, hideSpel } from "./display.js";
 import { durationOf, sumDurations, fadeDelay, readingTimes, resolveScore, resolveFade, fadeOptions, endsOfld, scoreGap, cycleGap } from "./score.js";
 import { shuffle } from "./math.js";
-import { defaults } from "./config.js";
+import { defaults, fadeTimes } from "./config.js";
 // options.generators: { name: (context, ...args) => score }, for scores that are generated each time
 // they come round (see resolveScore in score.js, and the README, "Generated scores")
 async function play(config, fieldElem, spels, paras, scores, options = {}) {
@@ -88,13 +88,16 @@ async function play(config, fieldElem, spels, paras, scores, options = {}) {
     const scale = settings.durationScale ?? settings.slower ?? durationScale;
     const interScoreMs = scoreGap(sNum, { config, settings, paras, spels }); // the unit it ends may have its own gap
     lastSettings = settings;
-    // a score's own spelFadeMs / charFadeMs (CSS transition times: the fade in and out of that score's spels; pages use
-    // them through --spel-fade / --char-fade, see typeCss). Not scaled by durationScale
-    if (config.scoreSettings?.some(st => st && ("spelFadeMs" in st || "charFadeMs" in st))) {
-      for (const [key, prop] of [["spelFadeMs", "--spel-fade"], ["charFadeMs", "--char-fade"]]) {
-        if (settings[key] !== undefined) fieldElem.style.setProperty(prop, `${settings[key]}ms`);
-        else fieldElem.style.removeProperty(prop);
-      }
+    // a score's own fadeMs / fadeInMs / fadeOutMs (CSS transition times of that score's spels, in and out; pages use them
+    // through --fade-in / --fade-out, see typeCss; not scaled by durationScale). What a score does not say is left to the config's
+    const charFades = config.charFades ?? true;
+    if (config.scoreSettings?.some(st => st && Object.values(fadeTimes(st, charFades)).some(v => v !== undefined))) {
+      const t = fadeTimes(settings, charFades);
+      for (const [v, props] of [[t.inMs, ["--fade-in", "--spel-fade", "--char-fade"]], [t.outMs, ["--fade-out"]]])
+        for (const prop of props) {
+          if (v !== undefined) fieldElem.style.setProperty(prop, `${v}ms`);
+          else fieldElem.style.removeProperty(prop);
+        }
     }
     const toggleOpts = { effect: settings.effect, durationScale: settings.durationScale ?? settings.slower };
     // TODO - ALLOW MULTIPLE SCORES PER PARA (scoreNum goes to 0 on paraNum change)

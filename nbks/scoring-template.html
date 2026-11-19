@@ -18,7 +18,7 @@
     // "@v0.5.0" pins it. To move to a new release, change this
     // tag (scripts/bump.js does it for a whole project; see the
     // engine's README, "Releases").
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.14.0";
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.15.0";
     const load = async (f) => {
       try { return await import(`${engine}/${f}`); }
       catch (e) { throw new Error(`Could not load the engine file ${f} from ${engine} (offline, or tag missing?): ${e.message}`); }
@@ -79,22 +79,24 @@
       // interParaMs: 1000,  // ... after one ending a para
       // interFieldMs: 3000, // ... after one ending an ofld
       // interCycleMs: 3000, // at the end of each cycle
-      // clearPauseMs: 800,  // dark time after a fade
+      // clearPauseMs: 1300, // dark time after a fade
       // creditsPauseMs: 0,  // #byline shown at cycle end
 
       // startPara: 0,       // paragraph a cycle starts at
       // cycleScores: false, // true: a cycle plays every
       //   score in turn (see scoreSettings)
 
-      // --- PAGE: CSS fade times of spels and characters
-      // spelFadeMs: 1500,
-      // charFadeMs: 1300,
+      // --- PAGE: applied by the page's CSS. Defaults shown.
+      // fadeMs: 1300,       // fade of a character (charFades)
+      //   or a whole spel, in and out; a score may set its own
+      // fadeInMs: 1300,     // when it appears, instead of fadeMs
+      // fadeOutMs: 1300,    // when it disappears, instead
 
       // scoreSettings: set it through perScore, below
     })
     // Settings for only some scores (anything scoreSettings takes:
     // interFieldMs, clearPauseMs, interCycleMs, holdMs, fadeOut,
-    // durationScale, effect, spelFadeMs ...). Name a score by its
+    // durationScale, effect, fadeOutMs ...). Name a score by its
     // number from 0 (-1 counts from the end), "first", "last" or
     // "all". The export turns this into the scoreSettings array,
     // once the number of scores is known (expandScoreSettings).
@@ -1072,7 +1074,7 @@
       }
 
       /* the type (family, size, weight, line height, ligatures, optical size) and the fade times
-         (--spel-fade, --char-fade, --field-fade) all come from the config, through the engine's
+         (--fade-in, --fade-out, --field-fade) all come from the config, through the engine's
          typeCss, and so are the same in the player, which calls typeCss with its own selector */
       ${typeCss(config, ".set")}
 
@@ -1092,21 +1094,23 @@
       .spel {
         position: absolute;
         opacity: 0;
-        transition: all var(--spel-fade) ease-in-out;
+        transition: all var(--fade-out, 1.3s) ease-in-out;
       }
 
       .spel.visible {
         opacity: 1;
+        transition: all var(--fade-in, 1.3s) ease-in-out;
       }
 
       /* with charFades each spel is split into .char spans (the engine's splitIntoChars), which carry the fade */
       .char {
         opacity: 0;
-        transition: all var(--char-fade) ease-in-out;
+        transition: all var(--fade-out, 1.3s) ease-in-out;
       }
 
       .char.visible {
         opacity: 1;
+        transition: all var(--fade-in, 1.3s) ease-in-out;
       }
 
       /* an "effect" other than "visible" in a score's settings (see Playback below) is a class the
@@ -1364,7 +1368,7 @@
 
     - `measure`: the type and layout the spels are measured in (`fontFamily`, `fontWeight`, `fontSizeVw`, `lineHeight`, `opsz`, `ligatures`, `clmnRight`). The spel data depends on them, so the player must use the same. The `typeCss(config, selector)` call in the CSS cell writes the type CSS from them; the player calls the same function.
     - `play`: read by the engine while it plays the piece (`durationScale`, `fadeOut`, `fadeStyle`, `fadeWords`, `charFades`, the `...Ms` times, `startPara`, `cycleScores`, `scoreSettings`...). You can set them here to keep them with the piece; the export carries them to the player.
-    - `page`: applied by the page's CSS (`spelFadeMs`, `charFadeMs`; `fieldFadeMs` is also read by the engine).
+    - `page`: applied by the page's CSS (`fadeMs`, `fadeInMs`, `fadeOutMs`; `fieldFadeMs` is also read by the engine).
 
     **The player gets the config from the notebook, not by copy.** Save or download `config.json` (see Export) and, in the player, `const config = createConfig(await FileAttachment("./data/config.json").json(), { /* player-only overrides */ })`. Then `typeCss(config, "#field")` gives the field the same type the notebook measured. See the engine's README, "Configuration".
 
@@ -1394,7 +1398,7 @@
     What the engine does with the export (`play(config, fieldElem, spels, paras, scores)`):
 
     - **Scores.** `scores` is an array of scores, one per para; a score is an array of `{ id, duration }`: show the spel `id`, wait `duration` ms (times `durationScale`), go on. The default scores above are linear (each spel in text order, `duration` from `spelTime`); edit them, or write your own, to compose the timing. Two special items: `{ id: "PAUSE", duration }` waits without showing anything, and `{ id: "AUTOFADE", pause: n }` sets `fadeWords` to `n` from here on.
-    - **Fading.** `fadeOut` chooses what fades the spels: `"window"`: each spel is faded again `fadeWords` spels after it (a moving window; `paraFadeWords` gives one value per paragraph); `"scored"`: the scores do their own fading (they toggle spels on and off); `"score"`: the spels of a score fade after its last item and its gap (`interScoreMs`); `"ofld"`: the spels of an ofld fade after the score that ends it and its gap (`interFieldMs`); `"cycle"`: everything fades at the end of the cycle. `fadeStyle` is `"together"` (all at once) or `"sequence"` (in the order shown, each after its item's duration). Refinements: `fadeOrder` (`shown`, `reverse`, `random`), `fadeStaggerMs` (a fixed step), `holdMs` (the least time the whole unit shows), `overlapMs` (start the next score while the fade goes on) and `revealStyle: "together"` (show a score's spels all at once). A score may override all of these in `scoreSettings`, which also takes `spelFadeMs` / `charFadeMs` (that score's fade time). `bindKeys(config)` adds keys to pause (space) and skip (right arrow). Without `fadeOut`, the older `fadeWords` values still work (`0`: the whole paragraph removed after each score; `-1`: `"scored"`).
+    - **Fading.** `fadeOut` chooses what fades the spels: `"window"`: each spel is faded again `fadeWords` spels after it (a moving window; `paraFadeWords` gives one value per paragraph); `"scored"`: the scores do their own fading (they toggle spels on and off); `"score"`: the spels of a score fade after its last item and its gap (`interScoreMs`); `"ofld"`: the spels of an ofld fade after the score that ends it and its gap (`interFieldMs`); `"cycle"`: everything fades at the end of the cycle. `fadeStyle` is `"together"` (all at once) or `"sequence"` (in the order shown, each after its item's duration). Refinements: `fadeOrder` (`shown`, `reverse`, `random`), `fadeStaggerMs` (a fixed step), `holdMs` (the least time the whole unit shows), `overlapMs` (start the next score while the fade goes on) and `revealStyle: "together"` (show a score's spels all at once). A score may override all of these in `scoreSettings`, which also takes `fadeMs` / `fadeInMs` / `fadeOutMs` (that score's fade times). `bindKeys(config)` adds keys to pause (space) and skip (right arrow). Without `fadeOut`, the older `fadeWords` values still work (`0`: the whole paragraph removed after each score; `-1`: `"scored"`).
     - **Characters.** With `charFades`, each spel is revealed one character at a time, `charIntervalMs` apart (the engine's `splitIntoChars` prepares the field).
     - **Several scores for one poem.** `cycleScores: true` plays every score in order in a single cycle. `scoreSettings[n]` then sets, for score `n`: `durationScale`, `interScoreMs` (the gap after it), `interParaMs`, `interFieldMs`, `interCycleMs` (the gaps at the end of a para, a field, the cycle, if the score ends one), `effect` (the class toggled: `"visible"` by default, or another such as `"glow"`, which the page's CSS defines: see `.glow` above) and `shuffle` (play the items in a new random order each time). See `shi/nbks/data/maple-bridge/config.js` for ten scores in use. To set only some scores, name them in `perScore` (next to the config): by score number (`-1` counts from the end), `"first"`, `"last"` or `"all"`; the export builds the `scoreSettings` array from it.
     - **Cycle.** `interCycleMs` before the first score and at the end of each cycle, after the last score's own gap; `creditsPauseMs` shows the element `#byline` at the end of each cycle.

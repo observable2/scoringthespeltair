@@ -238,13 +238,18 @@ test("play(): overlapMs starts the next score while the fade goes on", { skip: !
   assert.ok(mixed(await fadeStates({ fadeOut: "ofld", fadeStyle: "sequence", overlapMs: 0 })), "overlapMs 0");
 });
 
-test("play(): a score's spelFadeMs / charFadeMs set the field's --spel-fade / --char-fade for it", { skip: !JSDOM }, async () => {
-  const all = ["a", "b", "c", "d"].map(() => ({ spelFadeMs: 7, charFadeMs: 9 }));
-  const a = await fadeStates({ fadeOut: "score" }, { settings: all });
-  assert.equal(a.field.style.getPropertyValue("--spel-fade"), "7ms");
-  assert.equal(a.field.style.getPropertyValue("--char-fade"), "9ms");
-  const b = await fadeStates({ fadeOut: "score" }, { settings: [{ spelFadeMs: 7 }], runMs: 150 }); // later scores have none
-  assert.equal(b.field.style.getPropertyValue("--spel-fade"), "");
+test("play(): a score's fadeMs / fadeInMs / fadeOutMs set the field's --fade-in / --fade-out for it (and the old names work)", { skip: !JSDOM }, async () => {
+  const all = (o) => ["a", "b", "c", "d"].map(() => o);
+  const a = await fadeStates({ fadeOut: "score" }, { settings: all({ fadeMs: 7, fadeOutMs: 9 }) });
+  assert.equal(a.field.style.getPropertyValue("--fade-in"), "7ms");
+  assert.equal(a.field.style.getPropertyValue("--fade-out"), "9ms");
+  assert.equal(a.field.style.getPropertyValue("--char-fade"), "7ms", "the former variables follow the fade-in");
+  const old = await fadeStates({ fadeOut: "score" }, { settings: all({ charFadeMs: 11 }) }); // charFades is on here
+  assert.equal(old.field.style.getPropertyValue("--fade-in"), "11ms");
+  assert.equal(old.field.style.getPropertyValue("--fade-out"), "11ms");
+  const b = await fadeStates({ fadeOut: "score" }, { settings: [{ fadeMs: 7 }], runMs: 150 }); // later scores have none
+  assert.equal(b.field.style.getPropertyValue("--fade-in"), "");
+  assert.equal(b.field.style.getPropertyValue("--fade-out"), "");
 });
 
 test("play(): config.paused holds the piece; config.skip ends the score at once; bindKeys sets them from the keyboard", { skip: !JSDOM }, async () => {

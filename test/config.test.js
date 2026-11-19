@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
-import { createConfig, normalizeConfig, defaultConfig, defaults, measuredWith, checkMeasuredWith, configSchema } from "../config.js";
+import { createConfig, fadeTimes, normalizeConfig, defaultConfig, defaults, measuredWith, checkMeasuredWith, configSchema } from "../config.js";
 import { typeCss } from "../typography.js";
 
 const legacy = JSON.parse(readFileSync(new URL("./fixtures/legacy-configs.json", import.meta.url)));
@@ -112,7 +112,7 @@ test("typeCss", () => {
   assert.match(css, /font-size: 3vw;/);
   assert.match(css, /font-weight: 300;/);
   assert.match(css, /"opsz" 14/);
-  assert.match(css, /--spel-fade: 1500ms/);
+  assert.match(css, /--fade-in: 1300ms/);
   assert.doesNotMatch(typeCss({ opsz: null }), /opsz/);
 });
 
@@ -138,4 +138,23 @@ test("expandScoreSettings: the array goes through createConfig and scoreGap as h
   const config = createConfig({ interFieldMs: 2000, scoreSettings: expandScoreSettings({ first: { interFieldMs: 3500 }, last: { interFieldMs: 3500 } }, 3) });
   const gaps = [0, 1, 2].map((i) => scoreGap(i, { config, settings: config.scoreSettings[i] ?? {}, paras, spels }));
   assert.deepEqual(gaps, [3500, 2000, 3500]);
+});
+
+test("fadeMs, fadeInMs, fadeOutMs: 1300 by default; the old spelFadeMs / charFadeMs become fadeMs (by charFades), in each score's settings too", () => {
+  assert.equal(defaults.fadeMs, 1300);
+  assert.equal(defaults.clearPauseMs, 1300);
+  assert.equal(createConfig({}).fadeMs, 1300);
+  assert.deepEqual(fadeTimes({}), { inMs: undefined, outMs: undefined });
+  assert.deepEqual(fadeTimes({ fadeMs: 500, fadeOutMs: 2500 }), { inMs: 500, outMs: 2500 });
+  assert.deepEqual(fadeTimes({ fadeInMs: 100 }), { inMs: 100, outMs: undefined });
+  // the old names: charFadeMs when characters fade (the default), spelFadeMs when whole spels do
+  const warns = [];
+  const chars = createConfig({ spelFadeMs: 1500, charFadeMs: 700 }, { warn: (m) => warns.push(m) });
+  assert.equal(chars.fadeMs, 700);
+  assert.equal(createConfig({ charFades: false, spelFadeMs: 1500, charFadeMs: 700 }).fadeMs, 1500);
+  assert.equal(createConfig({ fadeMs: 900, charFadeMs: 700 }).fadeMs, 900, "the current name wins");
+  assert.equal("charFadeMs" in chars || "spelFadeMs" in chars, false);
+  assert.deepEqual(warns, [], "the old names are accepted without a warning, like the other aliases");
+  const n = normalizeConfig({ charFades: false, scoreSettings: [{ spelFadeMs: 9, charFadeMs: 5, effect: "glow" }, null] });
+  assert.deepEqual(n.scoreSettings, [{ effect: "glow", fadeMs: 9 }, null]);
 });

@@ -20,7 +20,7 @@ const configSchema = {
   running:        { default: true,  scope: "play", doc: "false stops play() (handy while debugging)" },
   startPara:      { default: 0,     scope: "play", doc: "index of the paragraph where each cycle starts (usually 0; higher while debugging)" },
   cycleScores:    { default: false, scope: "play", doc: "true: one cycle plays every score in order (see scoreSettings); false: one score per paragraph" },
-  scoreSettings:  { default: undefined, scope: "play", doc: "array indexed by score number of { durationScale, interScoreMs, interParaMs, interFieldMs, interCycleMs, effect, shuffle, fadeOut, fadeStyle, fadeOrder, fadeStaggerMs, holdMs, overlapMs, revealStyle, clearPauseMs, spelFadeMs, charFadeMs }" },
+  scoreSettings:  { default: undefined, scope: "play", doc: "array indexed by score number of { durationScale, interScoreMs, interParaMs, interFieldMs, interCycleMs, effect, shuffle, fadeOut, fadeStyle, fadeOrder, fadeStaggerMs, holdMs, overlapMs, revealStyle, clearPauseMs, fadeMs, fadeInMs, fadeOutMs }" },
   fadeOut:        { default: undefined, scope: "play", doc: "what fades the spels out: \"window\" (each spel fades fadeWords spels after it), \"scored\" (the engine never fades; the score's own items do), \"score\" (a score's spels fade after its last item and its gap), \"ofld\" (an ofld's spels fade after the score that ends it and its gap), \"cycle\" (all the cycle's spels fade after its last score and gap). Absent: read from fadeWords, as before (n > 0 window; 0 wipes the whole field after each score; -1 scored). A score may override it (scoreSettings)" },
   fadeStyle:      { default: "together", scope: "play", doc: "with fadeOut score / ofld / cycle: \"together\" fades all the spels at once; \"sequence\" in the order shown, each after its item's duration. A score may override it (scoreSettings)" },
   fadeOrder:      { default: "shown", scope: "play", doc: "the order of a fadeStyle \"sequence\" fade: \"shown\" (as they appeared), \"reverse\", \"random\". A score may override it" },
@@ -39,11 +39,12 @@ const configSchema = {
   interCycleMs:   { default: 3000,  scope: "play", doc: "gap before the first score and at the end of each cycle (after the last score's own gap); the last score may override it" },
   creditsPauseMs: { default: 0,     scope: "play", doc: "how long #byline is shown at the end of each cycle (0: not shown)" },
   fieldFadeMs:    { default: 2500,  scope: "play", doc: "how long the whole field takes to fade (the legacy fadeWords 0 wipe); play() waits this long plus 250 ms. Also the field's CSS transition (typeCss)" },
-  clearPauseMs:   { default: 800,   scope: "play", doc: "pause after a fade-out of a whole score / ofld (fadeOut score / ofld / cycle) or the legacy fadeWords 0 wipe, before the next score starts: the dark time between two units. A score may override it (scoreSettings)" },
+  clearPauseMs:   { default: 1300,   scope: "play", doc: "pause after a fade-out of a whole score / ofld (fadeOut score / ofld / cycle) or the legacy fadeWords 0 wipe, before the next score starts: the dark time between two units. A score may override it (scoreSettings)" },
   PRODUCTION:     { default: false, scope: "play", doc: "true: no console logging from play()" },
   // --- page: applied by the pages through typeCss(config) and the CSS variables it sets
-  spelFadeMs:     { default: 1500,  scope: "page", doc: "CSS transition of a .spel" },
-  charFadeMs:     { default: 1300,  scope: "page", doc: "CSS transition of a .char" },
+  fadeMs:         { default: 1300,  scope: "page", doc: "CSS fade time of the unit that fades: a character (charFades) or a whole spel. A score may override it (scoreSettings). Replaces spelFadeMs and charFadeMs" },
+  fadeInMs:       { default: undefined, scope: "page", doc: "fade time when a spel / character appears, in place of fadeMs. A score may override it" },
+  fadeOutMs:      { default: undefined, scope: "page", doc: "fade time when it disappears, in place of fadeMs. A score may override it" },
   // --- measure: the type the spels are measured in, and the layout the measurement bakes in
   fontFamily:     { default: "Source Serif 4", scope: "measure", doc: "family of the type (the notebook loads it from Google Fonts; the player must have the same file)" },
   fontWeight:     { default: 300,   scope: "measure", doc: "CSS font-weight, 100-900" },
@@ -65,11 +66,23 @@ const configRetired = {
   numParas: "was never read by the engine (the number of paragraphs is paras.length)",
   scoredPauseMs: "was never read by the engine",
 };
+// spelFadeMs and charFadeMs are the old names of fadeMs (one of them applied, depending on charFades): they
+// are converted by normalizeConfig, in each score's settings too
+const legacyFadeKeys = ["spelFadeMs", "charFadeMs"];
 const legacyTimeKeys = ["charInterval", "interCycle", "interScore", "scoredPause", "creditsPause"];
 
 // the defaults, from the schema
 const defaults = Object.freeze(Object.fromEntries(
   Object.entries(configSchema).filter(([, d]) => d.default !== undefined).map(([k, d]) => [k, d.default])));
+
+// The fade times in `o` (a config, or one score's settings), in ms: { inMs, outMs }, each undefined if `o`
+// says nothing. The old spelFadeMs / charFadeMs count as fadeMs: charFadeMs when characters fade
+// (charFades, the default), spelFadeMs when whole spels do.
+function fadeTimes(o = {}, charFades = true) {
+  const old = charFades ? (o.charFadeMs ?? o.spelFadeMs) : (o.spelFadeMs ?? o.charFadeMs);
+  const f = o.fadeMs ?? old;
+  return { inMs: o.fadeInMs ?? f, outMs: o.fadeOutMs ?? f };
+}
 
 // Maps legacy names to current ones, leaving everything else alone (no defaults are added). A key
 // given under both names keeps the current one. play() applies this itself, so a config that was
@@ -83,12 +96,23 @@ function normalizeConfig(config) {
     }
   }
   for (const k of Object.keys(configRetired)) delete out[k];
+  // spelFadeMs / charFadeMs become fadeMs (which of the two depends on charFades); the current name wins
+  const charFades = out.charFades ?? defaults.charFades;
+  const oldFade = (o) => {
+    if (!legacyFadeKeys.some((k) => k in o)) return o;
+    const { spelFadeMs, charFadeMs, ...rest } = o;
+    const v = fadeTimes({ spelFadeMs, charFadeMs }, charFades).inMs;
+    return "fadeMs" in rest || v === undefined ? rest : { ...rest, fadeMs: v };
+  };
+  Object.assign(out, oldFade(out));
+  for (const k of legacyFadeKeys) delete out[k];
   // the aliases apply inside each score's settings too
   if (Array.isArray(out.scoreSettings))
     out.scoreSettings = out.scoreSettings.map((e) => {
-      if (!e || !("slower" in e)) return e;
-      const { slower, ...rest } = e;
-      return { durationScale: slower, ...rest };
+      if (!e) return e;
+      let r = e;
+      if ("slower" in r) { const { slower, ...rest } = r; r = { durationScale: slower, ...rest }; }
+      return oldFade(r);
     });
   return out;
 }
@@ -130,7 +154,7 @@ function createConfig(overrides = {}, { warn = console.warn } = {}) {
     if (k in overrides) warn(`scoringthespeltair: config key ${k} ${why}; remove it`);
   for (const k of legacyTimeKeys)
     if (k in overrides) warn(`scoringthespeltair: config key ${k} is ignored; times are milliseconds with an Ms suffix (e.g. interCycleMs)`);
-  const known = new Set([...Object.keys(configSchema), ...Object.keys(configAliases), ...Object.keys(configRetired), ...legacyTimeKeys]);
+  const known = new Set([...Object.keys(configSchema), ...Object.keys(configAliases), ...legacyFadeKeys, ...Object.keys(configRetired), ...legacyTimeKeys]);
   const unknown = Object.keys(overrides).filter((k) => !known.has(k));
   if (unknown.length) warn(`scoringthespeltair: unknown config key${unknown.length > 1 ? "s" : ""} ${unknown.join(", ")} (a typo? the project's own keys are kept)`);
   return { ...defaults, ...normalizeConfig(overrides) };
@@ -173,4 +197,4 @@ const defaultConfig = {
   cycleScores: false,
   PRODUCTION: false
 };
-export { createConfig, expandScoreSettings, normalizeConfig, measuredWith, checkMeasuredWith, configSchema, configAliases, defaults, defaultConfig };
+export { createConfig, expandScoreSettings, normalizeConfig, fadeTimes, measuredWith, checkMeasuredWith, configSchema, configAliases, defaults, defaultConfig };

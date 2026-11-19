@@ -19,5 +19,16 @@ test("typeCss: the rest is unchanged (size, weight, line height, ligatures, opsz
   assert.match(css, /font-weight: 400;/);
   assert.match(css, /line-height: 1.5;/);
   assert.doesNotMatch(css, /opsz/);
-  assert.match(css, /--spel-fade: 1500ms;/);
+  assert.match(css, /--fade-in: 1300ms;/);
+  assert.match(css, /--fade-out: 1300ms;/);
+});
+
+test("typeCss: fadeInMs and fadeOutMs set the two variables; the old variables follow the fade-in; old key names are read", () => {
+  const css = typeCss({ fadeMs: 800, fadeOutMs: 2500 });
+  assert.match(css, /--fade-in: 800ms;/);
+  assert.match(css, /--fade-out: 2500ms;/);
+  assert.match(css, /--spel-fade: 800ms;/);
+  assert.match(css, /--char-fade: 800ms;/);
+  assert.match(typeCss({ charFades: false, spelFadeMs: 1500, charFadeMs: 700 }), /--fade-in: 1500ms;/);
+  assert.match(typeCss({ charFadeMs: 700 }), /--fade-out: 700ms;/);
 });

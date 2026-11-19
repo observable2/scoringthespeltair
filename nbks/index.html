@@ -35,7 +35,7 @@
       }
 
       /* the type (family, size, weight, line height, ligatures, optical size) and the fade times
-         (--spel-fade, --char-fade, --field-fade) come from config.json, exported by
+         (--fade-in, --fade-out, --field-fade) come from config.json, exported by
          scoring-template.html, through the engine's typeCss: the type the spels were measured in.
          Do not set them again here. */
       ${typeCss(config, "#field")}
@@ -77,21 +77,23 @@
 
       .char {
         opacity: 0;
-        transition: all var(--char-fade) ease-in-out;
+        transition: all var(--fade-out, 1.3s) ease-in-out;
       }
 
       .char.visible {
         opacity: 1;
+        transition: all var(--fade-in, 1.3s) ease-in-out;
       }
 
       .spel {
         position: absolute;
         opacity: 0;
-        transition: all var(--spel-fade) ease-in-out;
+        transition: all var(--fade-out, 1.3s) ease-in-out;
       }
 
       .spel.visible {
         opacity: 1;
+        transition: all var(--fade-in, 1.3s) ease-in-out;
       }
     </style>
   </script>
