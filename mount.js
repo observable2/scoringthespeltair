@@ -11,7 +11,6 @@
 // of its spels. `spels` is a Map of id -> spel, as the pages build it
 // from spels.json. The page's CSS (or typeCss) must already set the
 // type, and #field's font weight etc.
-// typeCss) must already set the type, and #field's font weight etc.
 import { checkMeasuredWith } from "./config.js";
 import { splitIntoChars } from "./display.js";
 import { centerField } from "./center.js";
