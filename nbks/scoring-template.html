@@ -506,12 +506,18 @@
       }
       for (const k of markupKinds) if (open[k].length) throw new Error(`Unclosed ${k}`);
 
-      // implicit spels: runs of non-space outside explicit spels
+      // implicit spels: outside explicit spels, each Han character is
+      // a spel (with the punctuation that follows it and the opening
+      // quote or bracket that precedes it); anything else is a run of
+      // non-space, a word
       const explicit = ents.spel.sort((a, b) => a.start - b.start);
       const all = [...explicit];
       let pos = 0;
+      const OPEN = "「『（《〈“‘";
+      const CLOSE = "，。、；：？！…—～·」』）》〉”’.,;:?!)\\]";
+      const implicit = new RegExp(`[${OPEN}]*\\p{Script=Han}[${CLOSE}]*|(?:(?![${OPEN}]+\\p{Script=Han})[^\\s\\p{Script=Han}])+`, "gu");
       const addGap = (from, to) => {
-        for (const m of text.slice(from, to).matchAll(/\S+/g))
+        for (const m of text.slice(from, to).matchAll(implicit))
           all.push({ kind: "spel", start: from + m.index, end: from + m.index + m[0].length, text: m[0], implicit: true });
       };
       for (const s of explicit) { addGap(pos, s.start); pos = Math.max(pos, s.end); }
@@ -1688,7 +1694,10 @@
       starts the next.
     - **Spels:** an explicit spel is the text between `<!--@ spel -->` and
       `<!--@ /spel -->`, whitespace kept, rich markup allowed. Outside
-      explicit spels, each whitespace-separated run is an implicit spel.
+      explicit spels, each whitespace-separated run is an implicit spel,
+      except that each Han (Chinese) character is a spel of its own,
+      with the punctuation after it (`，。？！`, or `,.?!`) and an
+      opening quote or bracket before it (`「“`).
     - **Errors:** unknown kinds, unmatched closes and unclosed entities throw.
     - **Names:** an unnamed entity is `kind1`, `kind2`, ... in text order
       (`para1`, ...).

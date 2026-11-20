@@ -25,7 +25,10 @@
 // rounded to a whole ms.
 //
 // Only the punctuation listed here is accounted for; the set is to be
-// developed later. The end of the text supplied is treated as a line
+// developed later. Clause marks: , ; : — – ” ) and the Chinese
+// ，、；：）」』; sentence marks: . ? ! … and 。？！. A Han character
+// is a letter, so it costs perLetter. The end of the text supplied is
+// treated as a line
 // ending, whether or not it is a real end: one line break, or two if
 // the text contains some other line break (endBreaks,
 // endBreaksMultiline).
@@ -85,8 +88,8 @@ function wordMs(token, o, factor) {
   const ms =
     o.base +
     o.perLetter * count(token, /\p{L}/gu) +
-    o.clausePause * count(token, /[,;:\u2014\u2013\u201d)]/g) +
-    o.sentencePause * count(token, /[.?!\u2026]/g);
+    o.clausePause * count(token, /[,;:\u2014\u2013\u201d)\uff0c\u3001\uff1b\uff1a\uff09\u300d\u300f]/g) +
+    o.sentencePause * count(token, /[.?!\u2026\u3002\uff1f\uff01]/g);
   return Math.round(ms / factor);
 }
 

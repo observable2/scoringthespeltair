@@ -19,6 +19,18 @@ test("defaults are frozen and as documented", () => {
   assert.equal(timeToReadDefaults.perNewline, BREAK);
 });
 
+test("wordTime: a Han character is a letter; the Chinese marks pause like their roman ones", () => {
+  assert.equal(wordTime("\u7a7a"), L); // 空
+  assert.equal(wordTime("\u4eba\uff0c"), L + 150); // 人，
+  assert.equal(wordTime("\u54cd\u3002"), L + 150); // 响。
+  assert.equal(wordTime("\u4f60\uff1f"), L + 150); // 你？
+  assert.equal(wordTime("\u597d\uff01"), L + 150); // 好！
+  assert.equal(wordTime("\u7a7a\u5c71\u4e0d"), 3 * L); // several characters: a letter each
+  // a closing quote, like the roman one
+  assert.equal(wordTime("\u5c71\u300d"), L + 150);
+  assert.equal(spelTime("\u7a7a", ""), L);
+});
+
 test("wordTime: letters and the currently specified punctuation only", () => {
   assert.equal(wordTime("reading"), 7 * L);
   assert.equal(wordTime("away."), 4 * L + 150);
