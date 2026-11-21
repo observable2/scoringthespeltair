@@ -1416,7 +1416,19 @@
     }
     // The text of each file as it is written: identical to an existing
     // file's when the data are the same.
-    const texts = Object.fromEntries(Object.entries(piece).map(([name, data]) => [name, JSON.stringify(data)]))
+    // JSON with one record per line: each element of a top-level array,
+    // or each entry of a top-level object, on a line of its own and
+    // compact inside, so that the files diff by record. The same data
+    // always give the same text.
+    const toLines = (data) => {
+      const one = (value) => JSON.stringify(value)
+      if (Array.isArray(data) && data.length)
+        return "[\n" + data.map(one).join(",\n") + "\n]\n"
+      if (data && typeof data === "object" && !Array.isArray(data) && Object.keys(data).length)
+        return "{\n" + Object.entries(data).map(([key, value]) => `${one(key)}:${one(value)}`).join(",\n") + "\n}\n"
+      return one(data) + "\n"
+    }
+    const texts = Object.fromEntries(Object.entries(piece).map(([name, data]) => [name, toLines(data)]))
 
     // SAVING to the data folder. Where the browser allows it (Chrome,
     // Edge), pick this piece's nbks/data/ once (it is remembered; the
