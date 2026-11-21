@@ -25,7 +25,7 @@
     // "@v0.5.0" pins it. To move to a new release, change this
     // tag (scripts/bump.js does it for a whole project; see the
     // engine's README, "Releases").
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.15.0";
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.16.0";
     const load = async (f) => {
       try { return await import(`${engine}/${f}`); }
       catch (e) { throw new Error(`Could not load the engine file ${f} from ${engine} (offline, or tag missing?): ${e.message}`); }
@@ -601,6 +601,20 @@
     // The reading-time estimators come from the engine (see `engine`
     // above). They return milliseconds.
     const { spelTime } = await import(`${engine}/timetoread.js`)
+    // The time to read Han characters rests on their romanization
+    // (see the engine's README, "Reading Chinese"). The dictionary,
+    // tiny-pinyin (10 KB), comes from a CDN, and only when the galley
+    // has Han characters. Without it a character counts as one letter.
+    const PINYIN = "https://cdn.jsdelivr.net/npm/tiny-pinyin@1.3.2/+esm"
+    const loadRomanize = async () => {
+      try {
+        const { convertToPinyin } = await import(PINYIN)
+        return (run) => convertToPinyin(run, " ", true)
+      } catch (error) {
+        console.warn("No romanization for the time to read Han characters:", error.message)
+        return null
+      }
+    }
   </script>
   <script id="5741" type="module">
     display(md`#### \`scores\`<br>&nbsp;`)
@@ -613,7 +627,8 @@
     // follows the end of a para or field is the engine's to time, with
     // config.interParaMs and interFieldMs (a score may override them:
     // see scoreSettings), not the score's.
-    const readOptions = { whitespace: "respect" }
+    const romanize = /\p{Script=Han}/u.test(layout.text) ? await loadRomanize() : null
+    const readOptions = { whitespace: "respect", romanize }
     const scores = paraList.map((ids) =>
       ids.map((id, i) => {
         const spel = spels.get(id);
@@ -1628,8 +1643,9 @@
     - **Scores.** `scores` is an array of scores, one per para; a score is an
       array of `{ id, duration }`: show the spel `id`, wait `duration` ms
       (times `durationScale`), go on. The default scores above are linear
-      (text order, `duration` from `spelTime`); edit them, or write your own,
-      to compose the timing. Two special items: `{ id: "PAUSE", duration }`
+      (text order, `duration` from `spelTime`; a Han character is timed by
+      the letters of its pinyin, see the engine's README, "Reading
+      Chinese"); edit them, or write your own, to compose the timing. Two special items: `{ id: "PAUSE", duration }`
       waits without showing anything, and `{ id: "AUTOFADE", pause: n }` sets
       `fadeWords` to `n` from here on (`pause` here is a word count, not a
       time).

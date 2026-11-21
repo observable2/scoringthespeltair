@@ -559,6 +559,52 @@ follows it up to the next spel (`""` if none), and no end-of-text break
 unless `options.end` is true (the last spel of a paragraph). Spel markup
 (`<!--@ spel -->`) is HTML comments, so it is not read.
 
+### Reading Chinese
+
+The notebooks make each Han character a spel of its own (see the
+template's markup notes), and `timeToRead` has to say how long one takes.
+A character is one *letter* to the model (112 ms): a five-character line
+would be read in 0.56 s, which is far too fast. What a reader says is a
+syllable, so the engine takes an optional `romanize` function (a run of
+Han characters in, its romanization out) and counts the *letters of the
+romanization* instead: 空 `kong` is 4 letters, 人 `ren` is 3. A line of
+five characters then takes about 1.8 to 2 s (about 450 ms a syllable).
+
+```js
+spelTime("空", "", 1, { romanize: (han) => "kong" })  // 4 letters
+```
+
+The engine has no dictionary (it stays dependency-free). A page supplies
+one; the scoring notebooks (`scoring-luzhai`, `scoring-noreaster`, the
+template) load [tiny-pinyin](https://github.com/creeperyang/pinyin)
+(10 KB, MIT) from jsDelivr, only when the galley contains Han characters,
+and pass `(run) => convertToPinyin(run, " ", true)` as `romanize`. If the
+import fails, a character counts as one letter, as without the option.
+`uchaf` does not use `spelTime`. The option needs the engine release
+after 0.15.0 (0.16.0); an older engine ignores it.
+
+**Limits, for when this is revisited:**
+
+- **One reading per character.** tiny-pinyin has no word dictionary, so
+  `行` is always `xing` (`银行` becomes `yin xing`, not `yin hang`) and
+  `了` is always `le`. The model counts letters and most readings of a
+  character have the same number (`hang` and `xing`, `chang` and
+  `zhang`), but a few differ (`le`, `liao`; `le`, `yue`).
+  [pinyin-pro](https://github.com/zh-lx/pinyin-pro) (MIT, about 950 KB)
+  reads in context (`银行` is `yin hang`, `长大` is `zhang da`); it fits the
+  same `romanize` slot as `(run) => pinyin(run, { toneType: "none" })`.
+- **Letters are a rough proxy.** `perLetter` (112 ms) was fitted to
+  English letters. Pinyin letters per syllable run from 2 (`bu`) to 5
+  (`shang`), and a syllable is not read in time proportional to its
+  letters. A per-syllable constant, or a figure fitted to a recording
+  of Chinese, would be better; the notebook's alignment gives the
+  timestamps to fit it. Nothing here is calibrated.
+- **Tones, neutral tones and erhua** are not modelled.
+- **Traditional characters** are covered by tiny-pinyin's table only
+  where they match a simplified one.
+- **Punctuation** is counted as for roman text: `，、；：）」』` are clause
+  pauses and `。？！` sentence pauses (150 ms each, uncalibrated).
+
 ### Calibration of the estimators
 
 Timestamped readings exist for three texts (`reading`, `reunion`, and
@@ -580,6 +626,7 @@ on the rest):
   default (RiTa's is 700). Also uncalibrated: `perSpace`, `perTab`,
   `endBreaksMultiline`, and `perNewline` for prose paragraph breaks (it
   was measured on poem lines). A punctuated recording is needed.
+- Chinese is not calibrated at all (see Reading Chinese).
 - Pace differs by recording (mean interval about 560 ms crawlitsimage, 520
   reunion, 370 reading): that is what `factor` is for. The figures above
   are one reader's pace.

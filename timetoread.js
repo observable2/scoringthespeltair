@@ -17,6 +17,12 @@
 // read, and block structure (paragraphs, <br>, headings, list items,
 // ...) becomes line breaks.
 //
+// romanize (option, default none): a function from a run of Han
+// characters to its romanization, e.g. "kong shan" for 空山. With it,
+// a Han character counts as the letters of its syllable (about 4,
+// not 1); without it, as one letter. The engine has no dictionary:
+// the page supplies one (see README, "Reading Chinese").
+//
 // word time = base + perLetter * letters + clausePause * clause marks
 //             + sentencePause * sentence marks
 // gap time  = perNewline * line breaks + perSpace * extra spaces
@@ -41,7 +47,6 @@
 // the last spel of a paragraph, say). Spel markup (<!--@ spel --> ...
 // <!--@ /spel -->) is HTML comments, so, like any other markup, it is
 // not read: the same functions work on text that has none.
-// it is not read: the same functions work on text that has none.
 import { flatten, RSP, RTAB, RNL } from "./markup.js";
 
 const defaults = Object.freeze({
@@ -63,6 +68,9 @@ const defaults = Object.freeze({
   // ... or this many when the text has another line break (not yet
   // calibrated)
   endBreaksMultiline: 2,
+  // (run of Han characters) => romanization; null: a Han character
+  // is one letter (not calibrated)
+  romanize: null,
   html: true, // strip HTML tags, decode entities
   markdown: true, // strip Markdown
   // "collapse": as the DOM and Markdown render; "respect": as with
@@ -77,6 +85,9 @@ function settings(options) {
   if (o.whitespace !== "collapse" && o.whitespace !== "respect") {
     throw new Error(`timeToRead: whitespace must be "collapse" or "respect", not ${JSON.stringify(o.whitespace)}`);
   }
+  if (o.romanize !== null && typeof o.romanize !== "function") {
+    throw new Error("timeToRead: romanize must be a function or null");
+  }
   return o;
 }
 
@@ -84,10 +95,21 @@ function settings(options) {
 // whitespace markers
 const GAPS = /([ \ue000-\ue003]+)/;
 
+// the letters a token is read in: its own, and for each run of Han
+// characters the letters of its romanization, if there is a romanizer
+// (a character it cannot romanize stays a letter of its own)
+const HAN_RUN = /\p{Script=Han}+/gu;
+function letters(token, o) {
+  if (!o.romanize) return count(token, /\p{L}/gu);
+  let n = count(token.replace(HAN_RUN, ""), /\p{L}/gu);
+  for (const run of token.match(HAN_RUN) ?? []) n += count(String(o.romanize(run)), /\p{L}/gu);
+  return n;
+}
+
 function wordMs(token, o, factor) {
   const ms =
     o.base +
-    o.perLetter * count(token, /\p{L}/gu) +
+    o.perLetter * letters(token, o) +
     o.clausePause * count(token, /[,;:\u2014\u2013\u201d)\uff0c\u3001\uff1b\uff1a\uff09\u300d\u300f]/g) +
     o.sentencePause * count(token, /[.?!\u2026\u3002\uff1f\uff01]/g);
   return Math.round(ms / factor);

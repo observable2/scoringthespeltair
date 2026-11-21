@@ -31,6 +31,29 @@ test("wordTime: a Han character is a letter; the Chinese marks pause like their 
   assert.equal(spelTime("\u7a7a", ""), L);
 });
 
+test("romanize: a Han character counts as the letters of its romanization; without it, as one letter", () => {
+  // a fake dictionary: 空 kong, 山 shan, 人 ren (a character it does not know is returned as it is)
+  const table = { "\u7a7a": "kong", "\u5c71": "shan", "\u4eba": "ren" };
+  const romanize = (run) => [...run].map((c) => table[c] ?? c).join(" ");
+  assert.equal(wordTime("\u7a7a\u5c71"), 2 * L); // today: a letter each
+  assert.equal(wordTime("\u7a7a\u5c71", 1, { romanize }), 8 * L); // kong + shan
+  assert.equal(wordTime("\u4eba", 1, { romanize }), 3 * L); // ren
+  assert.equal(wordTime("\u4eba\uff0c", 1, { romanize }), 3 * L + 150); // the punctuation still pauses
+  // roman letters beside Han are counted as before; the romanizer sees only the Han run
+  const seen = [];
+  const spy = (run) => { seen.push(run); return "ab"; };
+  assert.equal(wordTime("abc\u7a7a\u5c71def", 1, { romanize: spy }), (3 + 2 + 3) * L);
+  assert.deepEqual(seen, ["\u7a7a\u5c71"]);
+  // a character it cannot romanize stays one letter
+  assert.equal(wordTime("\u54cd", 1, { romanize }), L);
+  // spelTime and timeToRead use it too
+  assert.equal(spelTime("\u7a7a", "", 1, { romanize }), 4 * L);
+  assert.equal(timeToRead("\u7a7a \u5c71", 1, { romanize }), 8 * L + 1000); // two words, and the end of the text
+  // it must be a function or null
+  assert.throws(() => wordTime("x", 1, { romanize: "pinyin" }), /romanize must be a function or null/);
+  assert.equal(timeToReadDefaults.romanize, null);
+});
+
 test("wordTime: letters and the currently specified punctuation only", () => {
   assert.equal(wordTime("reading"), 7 * L);
   assert.equal(wordTime("away."), 4 * L + 150);
