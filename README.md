@@ -580,8 +580,8 @@ template) load [tiny-pinyin](https://github.com/creeperyang/pinyin)
 (10 KB, MIT) from jsDelivr, only when the galley contains Han characters,
 and pass `(run) => convertToPinyin(run, " ", true)` as `romanize`. If the
 import fails, a character counts as one letter, as without the option.
-`uchaf` does not use `spelTime`. The option needs the engine release
-after 0.15.0 (0.16.0); an older engine ignores it.
+`uchaf` does not use `spelTime`. The option is in the engine from 0.16.0;
+an older engine ignores it.
 
 **Limits, for when this is revisited:**
 
