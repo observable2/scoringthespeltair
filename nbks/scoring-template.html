@@ -263,11 +263,12 @@
     // rendered element); the spans are positioned by vw font sizes, so
     // the host's width doesn't matter. The copy has no ofld rules, so
     // vertical positions are those of the unbroken text, "virtually".
-    const measureBoxes = (elem) => {
+    // With keepRules the rules stay, so the boxes are as displayed.
+    const measureBoxes = (elem, keepRules = false) => {
       const host = document.createElement("div");
       host.style.cssText = "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none";
       const box = elem.cloneNode(true);
-      box.querySelectorAll(".ofld-rule").forEach((hr) => hr.remove());
+      if (!keepRules) box.querySelectorAll(".ofld-rule").forEach((hr) => hr.remove());
       host.append(box);
       document.body.append(host);
       try {
@@ -465,6 +466,12 @@
           div.style.cssText = `position:absolute;left:0;margin-top:${-r3(pxToVw(lift))}vw`;
           wrapRange(elem, e.start, e.end, div);
         });
+      // The lifted clmns left the flow, so the copy would be only as
+      // tall as the clmn that stayed. Make it at least as tall as the
+      // tallest clmn: down to the lowest spel, as displayed.
+      const shown = measureBoxes(elem, true);
+      if (shown.length)
+        elem.style.minHeight = `${r3(pxToVw(Math.max(...shown.map((b) => b.top + b.height))))}vw`;
       return { elem, parsed, cont };
     }
   </script>
