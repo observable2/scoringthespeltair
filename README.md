@@ -497,6 +497,16 @@ says so; old names keep working through 1.x.
 
 ## Design notes
 
+### The scoring template and its copies
+
+`nbks/scoring-template.html` is copied into each project as
+`scoring-<name>.html`, which a maker edits by hand. A new affordance is
+built in one piece's notebook first; when it is generic it must be added
+to the template and to every copy. `TEMPLATE-CHANGELOG.md` has the rule
+and the version history; `node ../scoringthespeltair/scripts/check-notebooks.mjs`
+(from a project) lists the shared cells that have drifted from the
+template, and any notebook behind its version.
+
 ### Dependencies: keep the core dependency-free
 
 A top-level `import ... from "rita"` in a file reachable from `index.js`

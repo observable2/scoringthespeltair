@@ -24,6 +24,7 @@
     "controls.js",
     "scripts/bump.js",
     "scripts/migrate-scores-to-duration.js",
+    "scripts/check-notebooks.mjs",
     "README.md"
   ],
   "exports": {

@@ -3,7 +3,7 @@
   <title>Scoring Template</title>
   <script id="1" type="text/markdown" output="frame">
     # Scoring Template
-    ### Version 1.1.0
+    ### Version 1.2.0
     ## Scoring the Spelt Air
     ### *This is the working document, Fall 2026*
     *Scoring the Spelt Air* is a gathering of tools and conventions that will
@@ -115,6 +115,17 @@
     //   last: { interFieldMs: 3500, interCycleMs: 8000 },
     // }
     const perScore = {}
+    // Fonts for marked spels. In the galley, <!--@ font:name --> ...
+    // <!--@ /font --> sets the font of every spel inside it, for
+    // measuring and in the exported spels. Each name is a family, or
+    // { family, sizeVw } for a font size too, in vw (without sizeVw
+    // the spels keep fontSizeVw above). The page that plays the piece
+    // must load the family: a Google Fonts <link> in custom.tmpl, say.
+    // For example:
+    // const fonts = {
+    //   cursive: { family: "Liu Jian Mao Cao", sizeVw: 3 },
+    // }
+    const fonts = {}
   </script>
   <script id="5875" type="module">
     display(md`#### \`paras\``)
@@ -293,8 +304,8 @@
       const inners = Array.from(elem.querySelectorAll("span.spelm"), (s) => {
         let inner = s.innerHTML.replace(comments, "");
         for (let a = s.parentElement; a && a !== elem; a = a.parentElement) {
-          // display wrapper, not the spel's markup
-          if (a.classList.contains("clmn-lift")) continue;
+          // display wrappers, not the spel's markup
+          if (a.classList.contains("clmn-lift") || a.classList.contains("galley-font")) continue;
           const tag = a.cloneNode(false).outerHTML;
           inner = tag.slice(0, tag.lastIndexOf("</")) + inner + tag.slice(tag.lastIndexOf("</"));
         }
@@ -320,9 +331,9 @@
         const attr = id.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
         return {
           id, index: i, string: s.text, start: s.start, end: s.end, implicit: !!s.implicit,
-          para: s.para, clmn: s.clmn, ofld: s.ofld, sctn: s.sctn, chpt: s.chpt,
+          para: s.para, clmn: s.clmn, ofld: s.ofld, sctn: s.sctn, chpt: s.chpt, font: s.font,
           leftvw, topvw, widthvw: r3(pxToVw(m.width)), heightvw: r3(pxToVw(m.height)), indentvw,
-          html: `<span id="${attr}" class="spel" style="left:${leftvw}vw;top:${topvw}vw;white-space:pre${indentvw ? `;text-indent:${indentvw}vw` : ""}">${inner}</span>`
+          html: `<span id="${attr}" class="spel" style="left:${leftvw}vw;top:${topvw}vw;white-space:pre${indentvw ? `;text-indent:${indentvw}vw` : ""}${s.font ? `;${fontCss(s.font)}` : ""}">${inner}</span>`
         };
       });
     }
@@ -404,6 +415,25 @@
       root.append(node);
     };
 
+    // Shows the galley's `font` regions in their fonts: wraps each
+    // in <span class="galley-font" style="font-family: ...">. The
+    // text is unchanged, so every offset stays valid; unwrapFonts
+    // removes the wrappers again (decorateGalley does, first, so it
+    // can be run again on the same element).
+    const unwrapFonts = (root) => {
+      root.querySelectorAll("span.galley-font").forEach((w) => w.replaceWith(...w.childNodes));
+      root.normalize();
+    };
+    const decorateGalley = (galleyElem, parsed) => {
+      unwrapFonts(galleyElem);
+      for (const e of parsed.font) {
+        const wrapper = document.createElement("span");
+        wrapper.className = "galley-font";
+        wrapper.style.cssText = fontCss(e.name);
+        wrapRange(galleyElem, e.start, e.end, wrapper);
+      }
+    };
+
     // Takes the galley element (an element of class "set" holding text
     // and <!--@ ... --> markup) and returns { elem, parsed, cont }:
     // parsed is parseMarkup's result for the galley, cont is its
@@ -429,6 +459,11 @@
       const cont = containment(parsed);
       const elem = galleyElem.cloneNode(true);
       elem.removeAttribute("id");
+      // Wrap the font regions in the copy, whitespace included, as in
+      // the galley as displayed: the space around a spel is in the
+      // region's font too, and moves the spel accordingly. (The
+      // wrappers are display only: getSpelArray leaves them out.)
+      decorateGalley(elem, parsed);
       // rules first: they only split text nodes, never change the text
       parsed.ofld.filter((o) => parsed.spel.length && o.start > parsed.spel[0].start).forEach((o) => {
         const hr = document.createElement("hr");
@@ -480,12 +515,13 @@
     // Markup syntax: <!--@ token token ... -->
     //   open:  kind or kind:name   e.g. para, clmn:left
     //   close: /kind               e.g. /para
-    // kinds: spel, para, clmn, ofld, sctn, chpt
+    // kinds: spel, para, clmn, ofld, sctn, chpt, font
+    // (font:name takes the name of a font in `fonts`, config cell)
     // Several tokens may share a comment, so boundaries can coincide.
     // Within one comment all closes are applied before all opens, so
     // "/para para" ends one para and starts the next, whatever the
     // order.
-    const markupKinds = ["spel", "para", "clmn", "ofld", "sctn", "chpt"];
+    const markupKinds = ["spel", "para", "clmn", "ofld", "sctn", "chpt", "font"];
 
     const parseMarkup = (root) => {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT);
@@ -537,12 +573,13 @@
   <script id="5890" type="module">
     display(md`#### \`containment(parsed)\`<br>&nbsp;`)
     // Containment: for every spel (in parsed.spel order) the innermost
-    // para, clmn, ofld, sctn and chpt whose range contains it, or null
-    // (except para: see below). Unnamed entities are called kind1,
-    // kind2, ... in text order (para1, para2, ...), so named and
-    // unnamed ones can be mixed.
+    // para, clmn, ofld, sctn, chpt and font whose range contains it,
+    // or null (except para: see below). Unnamed entities are called
+    // kind1, kind2, ... in text order (para1, para2, ...), so named
+    // and unnamed ones can be mixed. A font must be named, and be one
+    // of `fonts` (config cell).
     const containment = (parsed) => {
-      const kinds = ["para", "clmn", "ofld", "sctn", "chpt"];
+      const kinds = ["para", "clmn", "ofld", "sctn", "chpt", "font"];
       const keyed = Object.fromEntries(kinds.map((k) => [k, parsed[k].map((e, i) => ({ ...e, key: e.name ?? `${k}${i + 1}` }))]));
       const innermost = (k, s) => keyed[k].reduce((best, e) =>
         e.start <= s.start && s.end <= e.end && (!best || e.end - e.start <= best.end - best.start) ? e : best, null);
@@ -553,8 +590,24 @@
         // ofld markup is one ofld, "galley"): a score is always of a
         // para
         c.para ??= c.ofld ?? "galley";
+        if (c.font !== null && !(c.font in fonts))
+          throw new Error(`Unknown font "${c.font}" in the markup (fonts: ${Object.keys(fonts).join(", ") || "none"})`);
         return c;
       });
+    }
+
+    // An entry of `fonts` as { family, sizeVw }: a plain string is a
+    // family with no size of its own.
+    const fontEntry = (name) => (typeof fonts[name] === "string" ? { family: fonts[name] } : fonts[name])
+    const fontFamilies = () => Object.keys(fonts).map((name) => fontEntry(name).family)
+
+    // The CSS declarations of a font name ("" for none): its family and
+    // its size, if it has one. Single quotes, so it can sit inside a
+    // style="..." attribute.
+    const fontCss = (name) => {
+      if (!name) return ""
+      const { family, sizeVw } = fontEntry(name)
+      return `font-family:'${family}', serif` + (sizeVw ? `;font-size:${sizeVw}vw` : "")
     }
   </script>
   <script id="4309" type="text/markdown">
@@ -568,7 +621,12 @@
     await fontReady
     await Promise.all(faces.map((f) =>
       document.fonts.load(`${f}16px "${fontFamily}"`, galley.textContent)))
+    // and the marked fonts (the page's stylesheet links them)
+    await Promise.all(fontFamilies().map((family) =>
+      document.fonts.load(`16px "${family}"`, galley.textContent)))
     const spanned = addSpansTo(galley)
+    // show the marked fonts in the galley itself, as the maker types it
+    decorateGalley(galley, spanned.parsed)
   </script>
   <script id="5895" type="text/html">
     <!-- The spanned galley, as the maker sees it: clmn:right really
@@ -1719,8 +1777,8 @@
     clmn:left -->` opens, `<!--@ /para /clmn -->` closes. They render nothing,
     so spel positions are unchanged.
 
-    - **Kinds:** `spel`, `para`, `clmn`, `ofld`, `sctn`, `chpt`; an optional
-      name follows a colon (`clmn:right`, `chpt:one`).
+    - **Kinds:** `spel`, `para`, `clmn`, `ofld`, `sctn`, `chpt`, `font`; an
+      optional name follows a colon (`clmn:right`, `chpt:one`).
     - **Nesting:** each kind has its own stack, so `clmn` and `ofld` may
       overlap `para`s freely; same-kind entities nest. `/kind` closes the
       latest open one.
@@ -1733,18 +1791,27 @@
       except that each Han (Chinese) character is a spel of its own,
       with the punctuation after it (`，。？！`, or `,.?!`) and an
       opening quote or bracket before it (`「“`).
+    - **Fonts:** `<!--@ font:name -->` ... `<!--@ /font -->` sets the font
+      of every spel inside it. `name` is a key of the `fonts` table in the
+      `config` cell: a family, or `{ family, sizeVw }` to give the spels a
+      font size too (in vw; the rest keep `fontSizeVw`). The region,
+      whitespace included, is shown in that font in the galley and
+      measured in it, so indents come out as displayed. The exported
+      spels carry the font in their `html` (and its name in `font`). The
+      page that plays the piece must load the family: a Google Fonts
+      `<link>` in its `custom.tmpl`, say.
     - **Errors:** unknown kinds, unmatched closes and unclosed entities throw.
     - **Names:** an unnamed entity is `kind1`, `kind2`, ... in text order
       (`para1`, ...).
     - **Layout:** a spel belongs to its innermost para, clmn, ofld, sctn, chpt
-      (outside every para, to its ofld's implicit para). In `clmn:right` it is
+      and font (outside every para, to its ofld's implicit para). In `clmn:right` it is
       offset by `config.clmnRight`; `clmn:left`, unnamed, or none adds 0. In
       each `ofld`, 0 is the top of its top-most spel box, and each `clmn`
       starts again at 0 (it is lifted to the top of its ofld). With no ofld
       the galley is the one ofld (called `galley`); spels outside the marked
       oflds also fall into it.
 
-    `parseMarkup(root)` returns `{text, spel, para, clmn, ofld, sctn, chpt}`:
+    `parseMarkup(root)` returns `{text, spel, para, clmn, ofld, sctn, chpt, font}`:
     `text` is the galley's text without markers, each entity is `{kind, name,
     start, end, text}` with offsets into `text`. The cell below parses a small
     sample.
