@@ -3,7 +3,7 @@
   <title>Scoring Template</title>
   <script id="1" type="text/markdown" output="frame">
     # Scoring Template
-    ### Version 1.3.0
+    ### Version 1.4.0
     ## Scoring the Spelt Air
     ### *This is the working document, Fall 2026*
     *Scoring the Spelt Air* is a gathering of tools and conventions that will
@@ -1493,9 +1493,16 @@
     const exportedConfig = Object.keys(perScore).length
       ? { ...config, scoreSettings: expandScoreSettings(perScore, exportedScores.length) }
       : config
+    // spels-raw.json: a copy of spels.json as the notebook makes it,
+    // for when spels.json is edited by hand (positions, text, html).
+    // Compare them (`diff spels-raw.json spels.json`) to see the edits;
+    // the folder check below does not select a spels.json that differs
+    // from the spels-raw.json on disk, so a re-export doesn't lose them.
+    const WITH_RAW = true
     const piece = {
       // [[id, spel], ...]: the player builds a Map from it
       "spels.json": Array.from(spels.entries()),
+      ...(WITH_RAW ? { "spels-raw.json": Array.from(spels.entries()) } : {}),
       // [[spel ids of para 1], [para 2], ...] in text order
       "paras.json": paraList,
       // [[{id, duration}, ...] per para]. scores.json is what the
@@ -1616,13 +1623,18 @@
             const old = await readIfThere(folder, name)
             rows.push({ name, old, state: old === null ? "new" : old === texts[name] ? "identical" : "differs" })
           }
+          const rawOld = rows.find((r) => r.name === "spels-raw.json")?.old ?? null
           plan = rows.map(({ name, old, state }) => {
             const box = document.createElement("input")
             box.type = "checkbox"
-            // an identical file need not be written
-            box.checked = state !== "identical"
+            // hand-edited: spels.json differs from the spels-raw.json
+            // written with it
+            const edited = name === "spels.json" && old !== null && rawOld !== null && old !== rawOld
+            // an identical file need not be written, nor a hand-edited one
+            box.checked = state !== "identical" && !edited
             const note = document.createElement("td")
-            note.textContent = state === "new" ? "new file" : state === "identical" ? "identical: nothing to replace" : "REPLACES: " + describeChange(old, texts[name])
+            note.textContent = state === "new" ? "new file" : state === "identical" ? "identical: nothing to replace"
+              : (edited ? "HAND-EDITED (it differs from spels-raw.json), not selected. " : "") + "REPLACES: " + describeChange(old, texts[name])
             note.style.color = state === "differs" ? "crimson" : "gray"
             const cell = (...content) => { const td = document.createElement("td"); td.append(...content); return td }
             const row = document.createElement("tr")

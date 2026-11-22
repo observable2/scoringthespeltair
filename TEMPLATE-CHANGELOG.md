@@ -29,6 +29,15 @@ When it is generic:
    renumbers cell ids when it saves, and lists every shared cell whose
    code differs, and any notebook behind the template.
 
+## 1.4.0 (engine 0.17.0)
+
+- **`spels-raw.json`.** The export also writes a copy of `spels.json` as
+  the notebook makes it (`WITH_RAW` in the export cell), for when
+  `spels.json` is edited by hand: `diff spels-raw.json spels.json` shows
+  the edits. Where the notebook saves into the data folder, a `spels.json`
+  that differs from the `spels-raw.json` on disk is not selected for
+  writing. (uchaf, which only downloads, gets the extra file.)
+
 ## 1.3.0 (engine 0.17.0)
 
 - **Blank lines at the top of a `clmn`.** A column used to start at its
