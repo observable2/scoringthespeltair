@@ -29,6 +29,17 @@ When it is generic:
    renumbers cell ids when it saves, and lists every shared cell whose
    code differs, and any notebook behind the template.
 
+## 1.3.0 (engine 0.17.0)
+
+- **Blank lines at the top of a `clmn`.** A column used to start at its
+  first spel, so a blank line (or a `&nbsp;` line) before it was lost
+  when it was lifted to the top of its ofld. Now those lines count, as
+  they do inside a column: the first line break after the markup ends
+  the markup's own line, and each further one is a blank line. Notebooks
+  whose columns start right after the markup, or on the next line, measure
+  exactly as before. Cells: `measureBoxes` (with `inHost`,
+  `measureMarks`) and `addSpansTo`.
+
 ## 1.2.0 (engine 0.16.0)
 
 The first stamp that names a fixed set of cells: the template had moved

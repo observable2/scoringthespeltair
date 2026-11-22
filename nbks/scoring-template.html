@@ -3,7 +3,7 @@
   <title>Scoring Template</title>
   <script id="1" type="text/markdown" output="frame">
     # Scoring Template
-    ### Version 1.2.0
+    ### Version 1.3.0
     ## Scoring the Spelt Air
     ### *This is the working document, Fall 2026*
     *Scoring the Spelt Air* is a gathering of tools and conventions that will
@@ -275,7 +275,7 @@
     // the host's width doesn't matter. The copy has no ofld rules, so
     // vertical positions are those of the unbroken text, "virtually".
     // With keepRules the rules stay, so the boxes are as displayed.
-    const measureBoxes = (elem, keepRules = false) => {
+    const inHost = (elem, keepRules, measure) => {
       const host = document.createElement("div");
       host.style.cssText = "position:absolute;left:0;top:0;visibility:hidden;pointer-events:none";
       const box = elem.cloneNode(true);
@@ -283,13 +283,20 @@
       host.append(box);
       document.body.append(host);
       try {
-        const ctx = document.createElement("canvas").getContext("2d");
-        const boxRect = box.getBoundingClientRect();
-        return Array.from(box.querySelectorAll("span.spelm"), (span) => measureSpel(span, boxRect, ctx));
+        return measure(box, box.getBoundingClientRect());
       } finally {
         host.remove();
       }
     };
+    const measureBoxes = (elem, keepRules = false) => inHost(elem, keepRules, (box, boxRect) => {
+      const ctx = document.createElement("canvas").getContext("2d");
+      return Array.from(box.querySelectorAll("span.spelm"), (span) => measureSpel(span, boxRect, ctx));
+    });
+    // Tops (px) of the markers addSpansTo puts at the start of a clmn
+    // and of an ofld (span.clmn-mark, by data-key): the top of the line
+    // each starts on.
+    const measureMarks = (elem) => inHost(elem, false, (box, boxRect) =>
+      new Map(Array.from(box.querySelectorAll("span.clmn-mark"), (m) => [m.dataset.key, m.getBoundingClientRect().top - boxRect.top])));
 
     const getSpelArray = (spanned) => {
       const { elem, parsed, cont } = spanned;
@@ -445,9 +452,9 @@
     //     clmn:right (so their horizontal measurements are actual
     //     ones);
     //   - each clmn is moved up (in an absolutely positioned wrapper,
-    //     so no blank space is left) until its top-most spel box is
-    //     level with the top of its ofld: like an ofld, a clmn starts
-    //     again at 0. The spels' vertical measurements, taken from this
+    //     so no blank space is left) until its first line is level
+    //     with the first line of its ofld: like an ofld, a clmn starts
+    //     again at 0, and blank lines before its first spel count. The spels' vertical measurements, taken from this
     //     element, are therefore actual ones;
     //   - every ofld after the first is preceded by <hr
     //     class="ofld-rule">. The rules are for the maker only:
@@ -480,20 +487,52 @@
       // absolutely positioned <div class="clmn-lift">, so it leaves the
       // flow and leaves no blank lines behind (its lines still break as
       // before; it is anchored at the left edge of the galley).
+      //
+      // A clmn starts where its text starts, so blank lines before its
+      // first spel push it down (as they do in the left clmn): the top
+      // of a clmn is the top of its first spel less the height of
+      // those lines, found with markers, and the clmns of an ofld are
+      // lifted to the highest. The line break that ends the markup's
+      // own line (`<!--@ clmn:right -->` alone on a line) is not a
+      // blank line; to leave one, leave a further line break, or a
+      // &nbsp;.
+      const startOf = (from) => from + (/^[ \t]*\n/.exec(parsed.text.slice(from))?.[0].length ?? 0);
+      const members = parsed.clmn.map((e, j) => {
+        const key = e.name ?? `clmn${j + 1}`;
+        return cont.map((c, i) => i).filter((i) => cont[i].clmn === key
+          && parsed.spel[i].start >= e.start && parsed.spel[i].end <= e.end);
+      });
+      const mark = (name, at) => {
+        const m = document.createElement("span");
+        m.className = "clmn-mark";
+        m.dataset.key = name;
+        m.style.cssText = "display:inline-block;width:0;height:0;vertical-align:top";
+        insertAtOffset(elem, at, m);
+      };
+      parsed.clmn.forEach((e, j) => {
+        if (!members[j].length) return;
+        mark(`a${j}`, startOf(e.start));
+        mark(`s${j}`, parsed.spel[members[j][0]].start);
+      });
+      const marks = measureMarks(elem);
+      elem.querySelectorAll("span.clmn-mark").forEach((m) => m.remove());
+      elem.normalize(); // the markers split text nodes
       const boxes = measureBoxes(elem);
+      const tops = parsed.clmn.map((e, j) => members[j].length
+        ? Math.min(...members[j].map((i) => boxes[i].top)) - (marks.get(`s${j}`) - marks.get(`a${j}`)) : null);
       const ofldTop = new Map();
       cont.forEach((c, i) => {
         const o = c.ofld ?? "galley";
         ofldTop.set(o, Math.min(ofldTop.get(o) ?? Infinity, boxes[i].top));
       });
-      const lifts = parsed.clmn.map((e, j) => {
-        const key = e.name ?? `clmn${j + 1}`;
-        const mine = cont.map((c, i) => i).filter((i) => cont[i].clmn === key
-          && parsed.spel[i].start >= e.start && parsed.spel[i].end <= e.end);
-        if (!mine.length) return { e, lift: 0 };
-        const top = Math.min(...mine.map((i) => boxes[i].top));
-        return { e, lift: top - ofldTop.get(cont[mine[0]].ofld ?? "galley") };
+      tops.forEach((t, j) => {
+        if (t === null) return;
+        const o = cont[members[j][0]].ofld ?? "galley";
+        ofldTop.set(o, Math.min(ofldTop.get(o), t));
       });
+      const lifts = parsed.clmn.map((e, j) => ({
+        e, lift: tops[j] === null ? 0 : tops[j] - ofldTop.get(cont[members[j][0]].ofld ?? "galley"),
+      }));
       lifts.filter(({ lift }) => lift > 0).sort((a, b) => a.e.start - b.e.start || b.e.end - a.e.end)
         .forEach(({ e, lift }) => {
           const div = document.createElement("div");
@@ -1807,7 +1846,9 @@
       and font (outside every para, to its ofld's implicit para). In `clmn:right` it is
       offset by `config.clmnRight`; `clmn:left`, unnamed, or none adds 0. In
       each `ofld`, 0 is the top of its top-most spel box, and each `clmn`
-      starts again at 0 (it is lifted to the top of its ofld). With no ofld
+      starts again at 0 (it is lifted to the top of its ofld; blank lines before
+      its first spel count: leave a line break, or a `&nbsp;`, after the one that
+      ends the markup's line). With no ofld
       the galley is the one ofld (called `galley`); spels outside the marked
       oflds also fall into it.
 
@@ -1854,7 +1895,7 @@
     **bounding box** of the spel's span in vw relative to its container. Left
     is measured on the offset display; top on the display with each clmn
     lifted to the top of its ofld, so a clmn starts again at 0 as an ofld
-    does; with oflds themselves it is virtual, from the ofld's top-most box.
+    does (blank lines before its first spel count, as in any column); with oflds themselves it is virtual, from the ofld's top-most box.
     `html` is an absolutely positioned span placed at `leftvw`, `topvw`. Ink
     (glyph overhangs) is deliberately not measured: the data goes to the
     player as boxes, and ink is dealt with only when a piece needs it.
