@@ -25,7 +25,7 @@
     // "@v0.5.0" pins it. To move to a new release, change this
     // tag (scripts/bump.js does it for a whole project; see the
     // engine's README, "Releases").
-    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.16.0";
+    const engine = "https://cdn.jsdelivr.net/gh/observable2/scoringthespeltair@v0.17.0";
     const load = async (f) => {
       try { return await import(`${engine}/${f}`); }
       catch (e) { throw new Error(`Could not load the engine file ${f} from ${engine} (offline, or tag missing?): ${e.message}`); }
